@@ -1,14 +1,15 @@
 import { Type } from "@sinclair/typebox";
 import { formatCliCommand } from "../../cli/command-format.js";
 import type { OpenClawConfig } from "../../config/config.js";
-import { normalizeResolvedSecretInputString } from "../../config/types.secrets.js";
 import { logVerbose } from "../../globals.js";
 import { wrapWebContent } from "../../security/external-content.js";
 import { normalizeSecretInput } from "../../utils/normalize-secret-input.js";
 import type { AnyAgentTool } from "./common.js";
-import { jsonResult, readNumberParam, readStringArrayParam, readStringParam } from "./common.js";
-import { withTrustedWebToolsEndpoint } from "./web-guarded-fetch.js";
-import { resolveCitationRedirectUrl } from "./web-search-citation-redirect.js";
+import { jsonResult, readNumberParam, readStringParam } from "./common.js";
+import {
+  WEB_TOOLS_TRUSTED_NETWORK_SSRF_POLICY,
+  withWebToolsNetworkGuard,
+} from "./web-guarded-fetch.js";
 import {
   CacheEntry,
   DEFAULT_CACHE_TTL_MINUTES,
@@ -21,17 +22,32 @@ import {
   writeCache,
 } from "./web-shared.js";
 
-const SEARCH_PROVIDERS = ["brave", "perplexity", "grok", "gemini", "kimi"] as const;
+const SEARCH_PROVIDERS = [
+  "brave",
+  "perplexity",
+  "grok",
+  "gemini",
+  "kimi",
+  "metaso",
+  "qwen",
+] as const;
 const DEFAULT_SEARCH_COUNT = 5;
 const MAX_SEARCH_COUNT = 10;
 
 const BRAVE_SEARCH_ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
-const PERPLEXITY_SEARCH_ENDPOINT = "https://api.perplexity.ai/search";
+const DEFAULT_PERPLEXITY_BASE_URL = "https://openrouter.ai/api/v1";
+const PERPLEXITY_DIRECT_BASE_URL = "https://api.perplexity.ai";
+const DEFAULT_PERPLEXITY_MODEL = "perplexity/sonar-pro";
+const PERPLEXITY_KEY_PREFIXES = ["pplx-"];
+const OPENROUTER_KEY_PREFIXES = ["sk-or-"];
 
 const XAI_API_ENDPOINT = "https://api.x.ai/v1/responses";
 const DEFAULT_GROK_MODEL = "grok-4-1-fast";
 const DEFAULT_KIMI_BASE_URL = "https://api.moonshot.ai/v1";
 const DEFAULT_KIMI_MODEL = "moonshot-v1-128k";
+const DEFAULT_METASO_BASE_URL = "https://metaso.cn";
+const DEFAULT_QWEN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+const DEFAULT_QWEN_MODEL = "qwen-plus";
 const KIMI_WEB_SEARCH_TOOL = {
   type: "builtin_function",
   function: { name: "$web_search" },
@@ -40,193 +56,43 @@ const KIMI_WEB_SEARCH_TOOL = {
 const SEARCH_CACHE = new Map<string, CacheEntry<Record<string, unknown>>>();
 const BRAVE_FRESHNESS_SHORTCUTS = new Set(["pd", "pw", "pm", "py"]);
 const BRAVE_FRESHNESS_RANGE = /^(\d{4}-\d{2}-\d{2})to(\d{4}-\d{2}-\d{2})$/;
-const BRAVE_SEARCH_LANG_CODES = new Set([
-  "ar",
-  "eu",
-  "bn",
-  "bg",
-  "ca",
-  "zh-hans",
-  "zh-hant",
-  "hr",
-  "cs",
-  "da",
-  "nl",
-  "en",
-  "en-gb",
-  "et",
-  "fi",
-  "fr",
-  "gl",
-  "de",
-  "el",
-  "gu",
-  "he",
-  "hi",
-  "hu",
-  "is",
-  "it",
-  "jp",
-  "kn",
-  "ko",
-  "lv",
-  "lt",
-  "ms",
-  "ml",
-  "mr",
-  "nb",
-  "pl",
-  "pt-br",
-  "pt-pt",
-  "pa",
-  "ro",
-  "ru",
-  "sr",
-  "sk",
-  "sl",
-  "es",
-  "sv",
-  "ta",
-  "te",
-  "th",
-  "tr",
-  "uk",
-  "vi",
-]);
-const BRAVE_SEARCH_LANG_ALIASES: Record<string, string> = {
-  ja: "jp",
-  zh: "zh-hans",
-  "zh-cn": "zh-hans",
-  "zh-hk": "zh-hant",
-  "zh-sg": "zh-hans",
-  "zh-tw": "zh-hant",
-};
+const BRAVE_SEARCH_LANG_CODE = /^[a-z]{2}$/i;
 const BRAVE_UI_LANG_LOCALE = /^([a-z]{2})-([a-z]{2})$/i;
-const PERPLEXITY_RECENCY_VALUES = new Set(["day", "week", "month", "year"]);
 
-const FRESHNESS_TO_RECENCY: Record<string, string> = {
-  pd: "day",
-  pw: "week",
-  pm: "month",
-  py: "year",
-};
-const RECENCY_TO_FRESHNESS: Record<string, string> = {
-  day: "pd",
-  week: "pw",
-  month: "pm",
-  year: "py",
-};
-
-const ISO_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
-const PERPLEXITY_DATE_PATTERN = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
-
-function isoToPerplexityDate(iso: string): string | undefined {
-  const match = iso.match(ISO_DATE_PATTERN);
-  if (!match) {
-    return undefined;
-  }
-  const [, year, month, day] = match;
-  return `${parseInt(month, 10)}/${parseInt(day, 10)}/${year}`;
-}
-
-function normalizeToIsoDate(value: string): string | undefined {
-  const trimmed = value.trim();
-  if (ISO_DATE_PATTERN.test(trimmed)) {
-    return isValidIsoDate(trimmed) ? trimmed : undefined;
-  }
-  const match = trimmed.match(PERPLEXITY_DATE_PATTERN);
-  if (match) {
-    const [, month, day, year] = match;
-    const iso = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
-    return isValidIsoDate(iso) ? iso : undefined;
-  }
-  return undefined;
-}
-
-function createWebSearchSchema(provider: (typeof SEARCH_PROVIDERS)[number]) {
-  const baseSchema = {
-    query: Type.String({ description: "Search query string." }),
-    count: Type.Optional(
-      Type.Number({
-        description: "Number of results to return (1-10).",
-        minimum: 1,
-        maximum: MAX_SEARCH_COUNT,
-      }),
-    ),
-    country: Type.Optional(
-      Type.String({
-        description:
-          "2-letter country code for region-specific results (e.g., 'DE', 'US', 'ALL'). Default: 'US'.",
-      }),
-    ),
-    language: Type.Optional(
-      Type.String({
-        description: "ISO 639-1 language code for results (e.g., 'en', 'de', 'fr').",
-      }),
-    ),
-    freshness: Type.Optional(
-      Type.String({
-        description: "Filter by time: 'day' (24h), 'week', 'month', or 'year'.",
-      }),
-    ),
-    date_after: Type.Optional(
-      Type.String({
-        description: "Only results published after this date (YYYY-MM-DD).",
-      }),
-    ),
-    date_before: Type.Optional(
-      Type.String({
-        description: "Only results published before this date (YYYY-MM-DD).",
-      }),
-    ),
-  } as const;
-
-  if (provider === "brave") {
-    return Type.Object({
-      ...baseSchema,
-      search_lang: Type.Optional(
-        Type.String({
-          description:
-            "Brave language code for search results (e.g., 'en', 'de', 'en-gb', 'zh-hans', 'zh-hant', 'pt-br').",
-        }),
-      ),
-      ui_lang: Type.Optional(
-        Type.String({
-          description:
-            "Locale code for UI elements in language-region format (e.g., 'en-US', 'de-DE', 'fr-FR', 'tr-TR'). Must include region subtag.",
-        }),
-      ),
-    });
-  }
-
-  if (provider === "perplexity") {
-    return Type.Object({
-      ...baseSchema,
-      domain_filter: Type.Optional(
-        Type.Array(Type.String(), {
-          description:
-            "Domain filter (max 20). Allowlist: ['nature.com'] or denylist: ['-reddit.com']. Cannot mix.",
-        }),
-      ),
-      max_tokens: Type.Optional(
-        Type.Number({
-          description: "Total content budget across all results (default: 25000, max: 1000000).",
-          minimum: 1,
-          maximum: 1000000,
-        }),
-      ),
-      max_tokens_per_page: Type.Optional(
-        Type.Number({
-          description: "Max tokens extracted per page (default: 2048).",
-          minimum: 1,
-        }),
-      ),
-    });
-  }
-
-  // grok, gemini, kimi, etc.
-  return Type.Object(baseSchema);
-}
+const WebSearchSchema = Type.Object({
+  query: Type.String({ description: "Search query string." }),
+  count: Type.Optional(
+    Type.Number({
+      description: "Number of results to return (1-10).",
+      minimum: 1,
+      maximum: MAX_SEARCH_COUNT,
+    }),
+  ),
+  country: Type.Optional(
+    Type.String({
+      description:
+        "2-letter country code for region-specific results (e.g., 'DE', 'US', 'ALL'). Default: 'US'.",
+    }),
+  ),
+  search_lang: Type.Optional(
+    Type.String({
+      description:
+        "Short ISO language code for search results (e.g., 'de', 'en', 'fr', 'tr'). Must be a 2-letter code, NOT a locale.",
+    }),
+  ),
+  ui_lang: Type.Optional(
+    Type.String({
+      description:
+        "Locale code for UI elements in language-region format (e.g., 'en-US', 'de-DE', 'fr-FR', 'tr-TR'). Must include region subtag.",
+    }),
+  ),
+  freshness: Type.Optional(
+    Type.String({
+      description:
+        "Filter results by discovery time. Brave supports 'pd', 'pw', 'pm', 'py', and date range 'YYYY-MM-DDtoYYYY-MM-DD'. Perplexity supports 'pd', 'pw', 'pm', and 'py'.",
+    }),
+  ),
+});
 
 type WebSearchConfig = NonNullable<OpenClawConfig["tools"]>["web"] extends infer Web
   ? Web extends { search?: infer Search }
@@ -249,9 +115,11 @@ type BraveSearchResponse = {
 
 type PerplexityConfig = {
   apiKey?: string;
+  baseUrl?: string;
+  model?: string;
 };
 
-type PerplexityApiKeySource = "config" | "perplexity_env" | "none";
+type PerplexityApiKeySource = "config" | "perplexity_env" | "openrouter_env" | "none";
 
 type GrokConfig = {
   apiKey?: string;
@@ -263,6 +131,19 @@ type KimiConfig = {
   apiKey?: string;
   baseUrl?: string;
   model?: string;
+};
+
+type MetasoConfig = {
+  apiKey?: string;
+  baseUrl?: string;
+  includeSummary?: boolean;
+};
+
+type QwenConfig = {
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
+  enableThinking?: boolean;
 };
 
 type GrokSearchResponse = {
@@ -324,18 +205,16 @@ type KimiSearchResponse = {
   }>;
 };
 
-type PerplexitySearchApiResult = {
-  title?: string;
-  url?: string;
-  snippet?: string;
-  date?: string;
-  last_updated?: string;
+type PerplexitySearchResponse = {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
+  citations?: string[];
 };
 
-type PerplexitySearchApiResponse = {
-  results?: PerplexitySearchApiResult[];
-  id?: string;
-};
+type PerplexityBaseUrlHint = "direct" | "openrouter";
 
 function extractGrokContent(data: GrokSearchResponse): {
   text: string | undefined;
@@ -430,14 +309,10 @@ function resolveSearchEnabled(params: { search?: WebSearchConfig; sandboxed?: bo
 }
 
 function resolveSearchApiKey(search?: WebSearchConfig): string | undefined {
-  const fromConfigRaw =
-    search && "apiKey" in search
-      ? normalizeResolvedSecretInputString({
-          value: search.apiKey,
-          path: "tools.web.search.apiKey",
-        })
-      : undefined;
-  const fromConfig = normalizeSecretInput(fromConfigRaw);
+  const fromConfig =
+    search && "apiKey" in search && typeof search.apiKey === "string"
+      ? normalizeSecretInput(search.apiKey)
+      : "";
   const fromEnv = normalizeSecretInput(process.env.BRAVE_API_KEY);
   return fromConfig || fromEnv || undefined;
 }
@@ -447,7 +322,7 @@ function missingSearchKeyPayload(provider: (typeof SEARCH_PROVIDERS)[number]) {
     return {
       error: "missing_perplexity_api_key",
       message:
-        "web_search (perplexity) needs an API key. Set PERPLEXITY_API_KEY in the Gateway environment, or configure tools.web.search.perplexity.apiKey.",
+        "web_search (perplexity) needs an API key. Set PERPLEXITY_API_KEY or OPENROUTER_API_KEY in the Gateway environment, or configure tools.web.search.perplexity.apiKey.",
       docs: "https://docs.openclaw.ai/tools/web",
     };
   }
@@ -475,6 +350,22 @@ function missingSearchKeyPayload(provider: (typeof SEARCH_PROVIDERS)[number]) {
       docs: "https://docs.openclaw.ai/tools/web",
     };
   }
+  if (provider === "metaso") {
+    return {
+      error: "missing_metaso_api_key",
+      message:
+        "web_search (metaso) needs a Metaso API key. Set METASO_API_KEY in the Gateway environment, or configure tools.web.search.metaso.apiKey.",
+      docs: "https://docs.openclaw.ai/tools/web",
+    };
+  }
+  if (provider === "qwen") {
+    return {
+      error: "missing_dashscope_api_key",
+      message:
+        "web_search (qwen) needs a DashScope API key. Set DASHSCOPE_API_KEY in the Gateway environment, or configure tools.web.search.qwen.apiKey.",
+      docs: "https://docs.openclaw.ai/tools/web",
+    };
+  }
   return {
     error: "missing_brave_api_key",
     message: `web_search needs a Brave Search API key. Run \`${formatCliCommand("openclaw configure --section web")}\` to store it, or set BRAVE_API_KEY in the Gateway environment.`,
@@ -499,13 +390,58 @@ function resolveSearchProvider(search?: WebSearchConfig): (typeof SEARCH_PROVIDE
   if (raw === "kimi") {
     return "kimi";
   }
+  if (raw === "metaso") {
+    return "metaso";
+  }
+  if (raw === "qwen") {
+    return "qwen";
+  }
   if (raw === "brave") {
     return "brave";
   }
 
   // Auto-detect provider from available API keys (priority order)
   if (raw === "") {
-    // 1. Perplexity
+    // 1. Brave
+    if (resolveSearchApiKey(search)) {
+      logVerbose(
+        'web_search: no provider configured, auto-detected "brave" from available API keys',
+      );
+      return "brave";
+    }
+    // 2. Gemini
+    const geminiConfig = resolveGeminiConfig(search);
+    if (resolveGeminiApiKey(geminiConfig)) {
+      logVerbose(
+        'web_search: no provider configured, auto-detected "gemini" from available API keys',
+      );
+      return "gemini";
+    }
+    // 3. Kimi
+    const kimiConfig = resolveKimiConfig(search);
+    if (resolveKimiApiKey(kimiConfig)) {
+      logVerbose(
+        'web_search: no provider configured, auto-detected "kimi" from available API keys',
+      );
+      return "kimi";
+    }
+    // 3b. Metaso
+    const metasoConfig = resolveMetasoConfig(search);
+    if (resolveMetasoApiKey(metasoConfig)) {
+      logVerbose(
+        'web_search: no provider configured, auto-detected "metaso" from available API keys',
+      );
+      return "metaso";
+    }
+    // 3c. Qwen
+    const qwenConfig = resolveQwenConfig(search);
+    if (resolveQwenApiKey(qwenConfig)) {
+      logVerbose(
+        'web_search: no provider configured, auto-detected "qwen" from available API keys',
+      );
+      return "qwen";
+    }
+    // 4. Perplexity
     const perplexityConfig = resolvePerplexityConfig(search);
     const { apiKey: perplexityKey } = resolvePerplexityApiKey(perplexityConfig);
     if (perplexityKey) {
@@ -514,22 +450,7 @@ function resolveSearchProvider(search?: WebSearchConfig): (typeof SEARCH_PROVIDE
       );
       return "perplexity";
     }
-    // 2. Brave
-    if (resolveSearchApiKey(search)) {
-      logVerbose(
-        'web_search: no provider configured, auto-detected "brave" from available API keys',
-      );
-      return "brave";
-    }
-    // 3. Gemini
-    const geminiConfig = resolveGeminiConfig(search);
-    if (resolveGeminiApiKey(geminiConfig)) {
-      logVerbose(
-        'web_search: no provider configured, auto-detected "gemini" from available API keys',
-      );
-      return "gemini";
-    }
-    // 4. Grok
+    // 5. Grok
     const grokConfig = resolveGrokConfig(search);
     if (resolveGrokApiKey(grokConfig)) {
       logVerbose(
@@ -537,17 +458,9 @@ function resolveSearchProvider(search?: WebSearchConfig): (typeof SEARCH_PROVIDE
       );
       return "grok";
     }
-    // 5. Kimi
-    const kimiConfig = resolveKimiConfig(search);
-    if (resolveKimiApiKey(kimiConfig)) {
-      logVerbose(
-        'web_search: no provider configured, auto-detected "kimi" from available API keys',
-      );
-      return "kimi";
-    }
   }
 
-  return "perplexity";
+  return "brave";
 }
 
 function resolvePerplexityConfig(search?: WebSearchConfig): PerplexityConfig {
@@ -575,11 +488,87 @@ function resolvePerplexityApiKey(perplexity?: PerplexityConfig): {
     return { apiKey: fromEnvPerplexity, source: "perplexity_env" };
   }
 
+  const fromEnvOpenRouter = normalizeApiKey(process.env.OPENROUTER_API_KEY);
+  if (fromEnvOpenRouter) {
+    return { apiKey: fromEnvOpenRouter, source: "openrouter_env" };
+  }
+
   return { apiKey: undefined, source: "none" };
 }
 
 function normalizeApiKey(key: unknown): string {
   return normalizeSecretInput(key);
+}
+
+function inferPerplexityBaseUrlFromApiKey(apiKey?: string): PerplexityBaseUrlHint | undefined {
+  if (!apiKey) {
+    return undefined;
+  }
+  const normalized = apiKey.toLowerCase();
+  if (PERPLEXITY_KEY_PREFIXES.some((prefix) => normalized.startsWith(prefix))) {
+    return "direct";
+  }
+  if (OPENROUTER_KEY_PREFIXES.some((prefix) => normalized.startsWith(prefix))) {
+    return "openrouter";
+  }
+  return undefined;
+}
+
+function resolvePerplexityBaseUrl(
+  perplexity?: PerplexityConfig,
+  apiKeySource: PerplexityApiKeySource = "none",
+  apiKey?: string,
+): string {
+  const fromConfig =
+    perplexity && "baseUrl" in perplexity && typeof perplexity.baseUrl === "string"
+      ? perplexity.baseUrl.trim()
+      : "";
+  if (fromConfig) {
+    return fromConfig;
+  }
+  if (apiKeySource === "perplexity_env") {
+    return PERPLEXITY_DIRECT_BASE_URL;
+  }
+  if (apiKeySource === "openrouter_env") {
+    return DEFAULT_PERPLEXITY_BASE_URL;
+  }
+  if (apiKeySource === "config") {
+    const inferred = inferPerplexityBaseUrlFromApiKey(apiKey);
+    if (inferred === "direct") {
+      return PERPLEXITY_DIRECT_BASE_URL;
+    }
+    if (inferred === "openrouter") {
+      return DEFAULT_PERPLEXITY_BASE_URL;
+    }
+  }
+  return DEFAULT_PERPLEXITY_BASE_URL;
+}
+
+function resolvePerplexityModel(perplexity?: PerplexityConfig): string {
+  const fromConfig =
+    perplexity && "model" in perplexity && typeof perplexity.model === "string"
+      ? perplexity.model.trim()
+      : "";
+  return fromConfig || DEFAULT_PERPLEXITY_MODEL;
+}
+
+function isDirectPerplexityBaseUrl(baseUrl: string): boolean {
+  const trimmed = baseUrl.trim();
+  if (!trimmed) {
+    return false;
+  }
+  try {
+    return new URL(trimmed).hostname.toLowerCase() === "api.perplexity.ai";
+  } catch {
+    return false;
+  }
+}
+
+function resolvePerplexityRequestModel(baseUrl: string, model: string): string {
+  if (!isDirectPerplexityBaseUrl(baseUrl)) {
+    return model;
+  }
+  return model.startsWith("perplexity/") ? model.slice("perplexity/".length) : model;
 }
 
 function resolveGrokConfig(search?: WebSearchConfig): GrokConfig {
@@ -674,6 +663,74 @@ function resolveGeminiModel(gemini?: GeminiConfig): string {
   return fromConfig || DEFAULT_GEMINI_MODEL;
 }
 
+function resolveMetasoConfig(search?: WebSearchConfig): MetasoConfig {
+  if (!search || typeof search !== "object") {
+    return {};
+  }
+  const metaso = "metaso" in search ? search.metaso : undefined;
+  if (!metaso || typeof metaso !== "object") {
+    return {};
+  }
+  return metaso as MetasoConfig;
+}
+
+function resolveMetasoApiKey(metaso?: MetasoConfig): string | undefined {
+  const fromConfig = normalizeApiKey(metaso?.apiKey);
+  if (fromConfig) {
+    return fromConfig;
+  }
+  const fromEnv = normalizeApiKey(process.env.METASO_API_KEY);
+  return fromEnv || undefined;
+}
+
+function resolveMetasoBaseUrl(metaso?: MetasoConfig): string {
+  const fromConfig =
+    metaso && "baseUrl" in metaso && typeof metaso.baseUrl === "string"
+      ? metaso.baseUrl.trim()
+      : "";
+  return fromConfig || DEFAULT_METASO_BASE_URL;
+}
+
+function resolveMetasoIncludeSummary(metaso?: MetasoConfig): boolean {
+  return metaso?.includeSummary !== false;
+}
+
+function resolveQwenConfig(search?: WebSearchConfig): QwenConfig {
+  if (!search || typeof search !== "object") {
+    return {};
+  }
+  const qwen = "qwen" in search ? search.qwen : undefined;
+  if (!qwen || typeof qwen !== "object") {
+    return {};
+  }
+  return qwen as QwenConfig;
+}
+
+function resolveQwenApiKey(qwen?: QwenConfig): string | undefined {
+  const fromConfig = normalizeApiKey(qwen?.apiKey);
+  if (fromConfig) {
+    return fromConfig;
+  }
+  const fromEnv = normalizeApiKey(process.env.DASHSCOPE_API_KEY);
+  return fromEnv || undefined;
+}
+
+function resolveQwenBaseUrl(qwen?: QwenConfig): string {
+  const fromConfig =
+    qwen && "baseUrl" in qwen && typeof qwen.baseUrl === "string" ? qwen.baseUrl.trim() : "";
+  return fromConfig || DEFAULT_QWEN_BASE_URL;
+}
+
+function resolveQwenModel(qwen?: QwenConfig): string {
+  const fromConfig =
+    qwen && "model" in qwen && typeof qwen.model === "string" ? qwen.model.trim() : "";
+  return fromConfig || DEFAULT_QWEN_MODEL;
+}
+
+function resolveQwenEnableThinking(qwen?: QwenConfig): boolean {
+  return qwen?.enableThinking === true;
+}
+
 async function withTrustedWebSearchEndpoint<T>(
   params: {
     url: string;
@@ -682,11 +739,12 @@ async function withTrustedWebSearchEndpoint<T>(
   },
   run: (response: Response) => Promise<T>,
 ): Promise<T> {
-  return withTrustedWebToolsEndpoint(
+  return withWebToolsNetworkGuard(
     {
       url: params.url,
       init: params.init,
       timeoutSeconds: params.timeoutSeconds,
+      policy: WEB_TOOLS_TRUSTED_NETWORK_SSRF_POLICY,
     },
     async ({ response }) => run(response),
   );
@@ -768,7 +826,7 @@ async function runGeminiSearch(params: {
         const batch = rawCitations.slice(i, i + MAX_CONCURRENT_REDIRECTS);
         const resolved = await Promise.all(
           batch.map(async (citation) => {
-            const resolvedUrl = await resolveCitationRedirectUrl(citation.url);
+            const resolvedUrl = await resolveRedirectUrl(citation.url);
             return { ...citation, url: resolvedUrl };
           }),
         );
@@ -778,6 +836,27 @@ async function runGeminiSearch(params: {
       return { content, citations };
     },
   );
+}
+
+const REDIRECT_TIMEOUT_MS = 5000;
+
+/**
+ * Resolve a redirect URL to its final destination using a HEAD request.
+ * Returns the original URL if resolution fails or times out.
+ */
+async function resolveRedirectUrl(url: string): Promise<string> {
+  try {
+    return await withWebToolsNetworkGuard(
+      {
+        url,
+        init: { method: "HEAD" },
+        timeoutMs: REDIRECT_TIMEOUT_MS,
+      },
+      async ({ finalUrl }) => finalUrl || url,
+    );
+  } catch {
+    return url;
+  }
 }
 
 function resolveSearchCount(value: unknown, fallback: number): number {
@@ -791,14 +870,10 @@ function normalizeBraveSearchLang(value: string | undefined): string | undefined
     return undefined;
   }
   const trimmed = value.trim();
-  if (!trimmed) {
+  if (!trimmed || !BRAVE_SEARCH_LANG_CODE.test(trimmed)) {
     return undefined;
   }
-  const canonical = BRAVE_SEARCH_LANG_ALIASES[trimmed.toLowerCase()] ?? trimmed.toLowerCase();
-  if (!BRAVE_SEARCH_LANG_CODES.has(canonical)) {
-    return undefined;
-  }
-  return canonical;
+  return trimmed.toLowerCase();
 }
 
 function normalizeBraveUiLang(value: string | undefined): string | undefined {
@@ -846,15 +921,7 @@ function normalizeBraveLanguageParams(params: { search_lang?: string; ui_lang?: 
   return { search_lang, ui_lang };
 }
 
-/**
- * Normalizes freshness shortcut to the provider's expected format.
- * Accepts both Brave format (pd/pw/pm/py) and Perplexity format (day/week/month/year).
- * For Brave, also accepts date ranges (YYYY-MM-DDtoYYYY-MM-DD).
- */
-function normalizeFreshness(
-  value: string | undefined,
-  provider: (typeof SEARCH_PROVIDERS)[number],
-): string | undefined {
+function normalizeFreshness(value: string | undefined): string | undefined {
   if (!value) {
     return undefined;
   }
@@ -864,27 +931,41 @@ function normalizeFreshness(
   }
 
   const lower = trimmed.toLowerCase();
-
   if (BRAVE_FRESHNESS_SHORTCUTS.has(lower)) {
-    return provider === "brave" ? lower : FRESHNESS_TO_RECENCY[lower];
+    return lower;
   }
 
-  if (PERPLEXITY_RECENCY_VALUES.has(lower)) {
-    return provider === "perplexity" ? lower : RECENCY_TO_FRESHNESS[lower];
+  const match = trimmed.match(BRAVE_FRESHNESS_RANGE);
+  if (!match) {
+    return undefined;
   }
 
-  // Brave date range support
-  if (provider === "brave") {
-    const match = trimmed.match(BRAVE_FRESHNESS_RANGE);
-    if (match) {
-      const [, start, end] = match;
-      if (isValidIsoDate(start) && isValidIsoDate(end) && start <= end) {
-        return `${start}to${end}`;
-      }
-    }
+  const [, start, end] = match;
+  if (!isValidIsoDate(start) || !isValidIsoDate(end)) {
+    return undefined;
+  }
+  if (start > end) {
+    return undefined;
   }
 
-  return undefined;
+  return `${start}to${end}`;
+}
+
+/**
+ * Map normalized freshness values (pd/pw/pm/py) to Perplexity's
+ * search_recency_filter values (day/week/month/year).
+ */
+function freshnessToPerplexityRecency(freshness: string | undefined): string | undefined {
+  if (!freshness) {
+    return undefined;
+  }
+  const map: Record<string, string> = {
+    pd: "day",
+    pw: "week",
+    pm: "month",
+    py: "year",
+  };
+  return map[freshness] ?? undefined;
 }
 
 function isValidIsoDate(value: string): boolean {
@@ -919,61 +1000,41 @@ async function throwWebSearchApiError(res: Response, providerLabel: string): Pro
   throw new Error(`${providerLabel} API error (${res.status}): ${detail || res.statusText}`);
 }
 
-async function runPerplexitySearchApi(params: {
+async function runPerplexitySearch(params: {
   query: string;
   apiKey: string;
-  count: number;
+  baseUrl: string;
+  model: string;
   timeoutSeconds: number;
-  country?: string;
-  searchDomainFilter?: string[];
-  searchRecencyFilter?: string;
-  searchLanguageFilter?: string[];
-  searchAfterDate?: string;
-  searchBeforeDate?: string;
-  maxTokens?: number;
-  maxTokensPerPage?: number;
-}): Promise<
-  Array<{ title: string; url: string; description: string; published?: string; siteName?: string }>
-> {
+  freshness?: string;
+}): Promise<{ content: string; citations: string[] }> {
+  const baseUrl = params.baseUrl.trim().replace(/\/$/, "");
+  const endpoint = `${baseUrl}/chat/completions`;
+  const model = resolvePerplexityRequestModel(baseUrl, params.model);
+
   const body: Record<string, unknown> = {
-    query: params.query,
-    max_results: params.count,
+    model,
+    messages: [
+      {
+        role: "user",
+        content: params.query,
+      },
+    ],
   };
 
-  if (params.country) {
-    body.country = params.country;
-  }
-  if (params.searchDomainFilter && params.searchDomainFilter.length > 0) {
-    body.search_domain_filter = params.searchDomainFilter;
-  }
-  if (params.searchRecencyFilter) {
-    body.search_recency_filter = params.searchRecencyFilter;
-  }
-  if (params.searchLanguageFilter && params.searchLanguageFilter.length > 0) {
-    body.search_language_filter = params.searchLanguageFilter;
-  }
-  if (params.searchAfterDate) {
-    body.search_after_date = params.searchAfterDate;
-  }
-  if (params.searchBeforeDate) {
-    body.search_before_date = params.searchBeforeDate;
-  }
-  if (params.maxTokens !== undefined) {
-    body.max_tokens = params.maxTokens;
-  }
-  if (params.maxTokensPerPage !== undefined) {
-    body.max_tokens_per_page = params.maxTokensPerPage;
+  const recencyFilter = freshnessToPerplexityRecency(params.freshness);
+  if (recencyFilter) {
+    body.search_recency_filter = recencyFilter;
   }
 
   return withTrustedWebSearchEndpoint(
     {
-      url: PERPLEXITY_SEARCH_ENDPOINT,
+      url: endpoint,
       timeoutSeconds: params.timeoutSeconds,
       init: {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Accept: "application/json",
           Authorization: `Bearer ${params.apiKey}`,
           "HTTP-Referer": "https://openclaw.ai",
           "X-Title": "OpenClaw Web Search",
@@ -983,24 +1044,14 @@ async function runPerplexitySearchApi(params: {
     },
     async (res) => {
       if (!res.ok) {
-        return await throwWebSearchApiError(res, "Perplexity Search");
+        return await throwWebSearchApiError(res, "Perplexity");
       }
 
-      const data = (await res.json()) as PerplexitySearchApiResponse;
-      const results = Array.isArray(data.results) ? data.results : [];
+      const data = (await res.json()) as PerplexitySearchResponse;
+      const content = data.choices?.[0]?.message?.content ?? "No response";
+      const citations = data.citations ?? [];
 
-      return results.map((entry) => {
-        const title = entry.title ?? "";
-        const url = entry.url ?? "";
-        const snippet = entry.snippet ?? "";
-        return {
-          title: title ? wrapWebContent(title, "web_search") : "",
-          url,
-          description: snippet ? wrapWebContent(snippet, "web_search") : "",
-          published: entry.date ?? undefined,
-          siteName: resolveSiteName(url) || undefined,
-        };
-      });
+      return { content, citations };
     },
   );
 }
@@ -1213,6 +1264,155 @@ async function runKimiSearch(params: {
   };
 }
 
+type MetasoSearchResponse = {
+  data?: {
+    items?: Array<{
+      title?: string;
+      url?: string;
+      snippet?: string;
+      content?: string;
+    }>;
+    summary?: string;
+  };
+  // Flat variant returned by some Metaso API endpoints
+  items?: Array<{
+    title?: string;
+    url?: string;
+    snippet?: string;
+    content?: string;
+  }>;
+  summary?: string;
+};
+
+async function runMetasoSearch(params: {
+  query: string;
+  apiKey: string;
+  baseUrl: string;
+  includeSummary: boolean;
+  timeoutSeconds: number;
+  count: number;
+}): Promise<{ content: string; citations: Array<{ url: string; title?: string }> }> {
+  const baseUrl = params.baseUrl.trim().replace(/\/$/, "");
+  const endpoint = `${baseUrl}/api/search`;
+
+  return withTrustedWebSearchEndpoint(
+    {
+      url: endpoint,
+      timeoutSeconds: params.timeoutSeconds,
+      init: {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${params.apiKey}`,
+        },
+        body: JSON.stringify({
+          q: params.query,
+          num: params.count,
+          include_summary: params.includeSummary,
+        }),
+      },
+    },
+    async (res) => {
+      if (!res.ok) {
+        return await throwWebSearchApiError(res, "Metaso");
+      }
+
+      const data = (await res.json()) as MetasoSearchResponse;
+      const items = data.data?.items ?? data.items ?? [];
+      const summary = data.data?.summary ?? data.summary;
+
+      const citations = items
+        .filter((item) => item.url)
+        .map((item) => ({
+          url: item.url!,
+          title: item.title || undefined,
+        }));
+
+      const parts: string[] = [];
+      if (summary && params.includeSummary) {
+        parts.push(summary);
+      }
+      if (items.length > 0) {
+        for (const item of items) {
+          const snippet = item.snippet || item.content || "";
+          if (snippet) {
+            parts.push(`[${item.title || item.url || ""}](${item.url || ""})\n${snippet}`);
+          }
+        }
+      }
+
+      const content = parts.length > 0 ? parts.join("\n\n") : "No results";
+      return { content, citations };
+    },
+  );
+}
+
+type QwenSearchResponse = {
+  choices?: Array<{
+    finish_reason?: string;
+    message?: {
+      role?: string;
+      content?: string;
+      reasoning_content?: string;
+    };
+  }>;
+};
+
+async function runQwenSearch(params: {
+  query: string;
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  enableThinking: boolean;
+  timeoutSeconds: number;
+}): Promise<{ content: string; citations: string[] }> {
+  const baseUrl = params.baseUrl.trim().replace(/\/$/, "");
+  const endpoint = `${baseUrl}/chat/completions`;
+
+  const body: Record<string, unknown> = {
+    model: params.model,
+    messages: [
+      {
+        role: "user",
+        content: params.query,
+      },
+    ],
+    enable_search: true,
+  };
+  if (params.enableThinking) {
+    body.enable_thinking = true;
+  }
+
+  return withTrustedWebSearchEndpoint(
+    {
+      url: endpoint,
+      timeoutSeconds: params.timeoutSeconds,
+      init: {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${params.apiKey}`,
+        },
+        body: JSON.stringify(body),
+      },
+    },
+    async (res) => {
+      if (!res.ok) {
+        return await throwWebSearchApiError(res, "Qwen");
+      }
+
+      const data = (await res.json()) as QwenSearchResponse;
+      const content = data.choices?.[0]?.message?.content ?? "No response";
+      // Qwen's search-enabled completions embed citations as markdown links
+      const urlRegex = /https?:\/\/[^\s)]+/g;
+      const urls = content.match(urlRegex) ?? [];
+      const citations = [...new Set(urls)];
+
+      return { content, citations };
+    },
+  );
+}
+
 async function runWebSearch(params: {
   query: string;
   count: number;
@@ -1221,31 +1421,36 @@ async function runWebSearch(params: {
   cacheTtlMs: number;
   provider: (typeof SEARCH_PROVIDERS)[number];
   country?: string;
-  language?: string;
   search_lang?: string;
   ui_lang?: string;
   freshness?: string;
-  dateAfter?: string;
-  dateBefore?: string;
-  searchDomainFilter?: string[];
-  maxTokens?: number;
-  maxTokensPerPage?: number;
+  perplexityBaseUrl?: string;
+  perplexityModel?: string;
   grokModel?: string;
   grokInlineCitations?: boolean;
   geminiModel?: string;
   kimiBaseUrl?: string;
   kimiModel?: string;
+  metasoBaseUrl?: string;
+  metasoIncludeSummary?: boolean;
+  qwenBaseUrl?: string;
+  qwenModel?: string;
+  qwenEnableThinking?: boolean;
 }): Promise<Record<string, unknown>> {
-  const providerSpecificKey =
-    params.provider === "grok"
-      ? `${params.grokModel ?? DEFAULT_GROK_MODEL}:${String(params.grokInlineCitations ?? false)}`
-      : params.provider === "gemini"
-        ? (params.geminiModel ?? DEFAULT_GEMINI_MODEL)
-        : params.provider === "kimi"
-          ? `${params.kimiBaseUrl ?? DEFAULT_KIMI_BASE_URL}:${params.kimiModel ?? DEFAULT_KIMI_MODEL}`
-          : "";
   const cacheKey = normalizeCacheKey(
-    `${params.provider}:${params.query}:${params.count}:${params.country || "default"}:${params.search_lang || params.language || "default"}:${params.ui_lang || "default"}:${params.freshness || "default"}:${params.dateAfter || "default"}:${params.dateBefore || "default"}:${params.searchDomainFilter?.join(",") || "default"}:${params.maxTokens || "default"}:${params.maxTokensPerPage || "default"}:${providerSpecificKey}`,
+    params.provider === "brave"
+      ? `${params.provider}:${params.query}:${params.count}:${params.country || "default"}:${params.search_lang || "default"}:${params.ui_lang || "default"}:${params.freshness || "default"}`
+      : params.provider === "perplexity"
+        ? `${params.provider}:${params.query}:${params.perplexityBaseUrl ?? DEFAULT_PERPLEXITY_BASE_URL}:${params.perplexityModel ?? DEFAULT_PERPLEXITY_MODEL}:${params.freshness || "default"}`
+        : params.provider === "kimi"
+          ? `${params.provider}:${params.query}:${params.kimiBaseUrl ?? DEFAULT_KIMI_BASE_URL}:${params.kimiModel ?? DEFAULT_KIMI_MODEL}`
+          : params.provider === "gemini"
+            ? `${params.provider}:${params.query}:${params.geminiModel ?? DEFAULT_GEMINI_MODEL}`
+            : params.provider === "metaso"
+              ? `${params.provider}:${params.query}:${params.metasoBaseUrl ?? DEFAULT_METASO_BASE_URL}:${String(params.metasoIncludeSummary ?? true)}`
+              : params.provider === "qwen"
+                ? `${params.provider}:${params.query}:${params.qwenBaseUrl ?? DEFAULT_QWEN_BASE_URL}:${params.qwenModel ?? DEFAULT_QWEN_MODEL}:${String(params.qwenEnableThinking ?? false)}`
+                : `${params.provider}:${params.query}:${params.grokModel ?? DEFAULT_GROK_MODEL}:${String(params.grokInlineCitations ?? false)}`,
   );
   const cached = readCache(SEARCH_CACHE, cacheKey);
   if (cached) {
@@ -1255,25 +1460,19 @@ async function runWebSearch(params: {
   const start = Date.now();
 
   if (params.provider === "perplexity") {
-    const results = await runPerplexitySearchApi({
+    const { content, citations } = await runPerplexitySearch({
       query: params.query,
       apiKey: params.apiKey,
-      count: params.count,
+      baseUrl: params.perplexityBaseUrl ?? DEFAULT_PERPLEXITY_BASE_URL,
+      model: params.perplexityModel ?? DEFAULT_PERPLEXITY_MODEL,
       timeoutSeconds: params.timeoutSeconds,
-      country: params.country,
-      searchDomainFilter: params.searchDomainFilter,
-      searchRecencyFilter: params.freshness,
-      searchLanguageFilter: params.language ? [params.language] : undefined,
-      searchAfterDate: params.dateAfter ? isoToPerplexityDate(params.dateAfter) : undefined,
-      searchBeforeDate: params.dateBefore ? isoToPerplexityDate(params.dateBefore) : undefined,
-      maxTokens: params.maxTokens,
-      maxTokensPerPage: params.maxTokensPerPage,
+      freshness: params.freshness,
     });
 
     const payload = {
       query: params.query,
       provider: params.provider,
-      count: results.length,
+      model: params.perplexityModel ?? DEFAULT_PERPLEXITY_MODEL,
       tookMs: Date.now() - start,
       externalContent: {
         untrusted: true,
@@ -1281,7 +1480,8 @@ async function runWebSearch(params: {
         provider: params.provider,
         wrapped: true,
       },
-      results,
+      content: wrapWebContent(content),
+      citations,
     };
     writeCache(SEARCH_CACHE, cacheKey, payload, params.cacheTtlMs);
     return payload;
@@ -1368,6 +1568,61 @@ async function runWebSearch(params: {
     return payload;
   }
 
+  if (params.provider === "metaso") {
+    const metasoResult = await runMetasoSearch({
+      query: params.query,
+      apiKey: params.apiKey,
+      baseUrl: params.metasoBaseUrl ?? DEFAULT_METASO_BASE_URL,
+      includeSummary: params.metasoIncludeSummary ?? true,
+      timeoutSeconds: params.timeoutSeconds,
+      count: params.count,
+    });
+
+    const payload = {
+      query: params.query,
+      provider: params.provider,
+      tookMs: Date.now() - start,
+      externalContent: {
+        untrusted: true,
+        source: "web_search",
+        provider: params.provider,
+        wrapped: true,
+      },
+      content: wrapWebContent(metasoResult.content),
+      citations: metasoResult.citations,
+    };
+    writeCache(SEARCH_CACHE, cacheKey, payload, params.cacheTtlMs);
+    return payload;
+  }
+
+  if (params.provider === "qwen") {
+    const { content, citations } = await runQwenSearch({
+      query: params.query,
+      apiKey: params.apiKey,
+      baseUrl: params.qwenBaseUrl ?? DEFAULT_QWEN_BASE_URL,
+      model: params.qwenModel ?? DEFAULT_QWEN_MODEL,
+      enableThinking: params.qwenEnableThinking ?? false,
+      timeoutSeconds: params.timeoutSeconds,
+    });
+
+    const payload = {
+      query: params.query,
+      provider: params.provider,
+      model: params.qwenModel ?? DEFAULT_QWEN_MODEL,
+      tookMs: Date.now() - start,
+      externalContent: {
+        untrusted: true,
+        source: "web_search",
+        provider: params.provider,
+        wrapped: true,
+      },
+      content: wrapWebContent(content),
+      citations,
+    };
+    writeCache(SEARCH_CACHE, cacheKey, payload, params.cacheTtlMs);
+    return payload;
+  }
+
   if (params.provider !== "brave") {
     throw new Error("Unsupported web search provider.");
   }
@@ -1378,23 +1633,14 @@ async function runWebSearch(params: {
   if (params.country) {
     url.searchParams.set("country", params.country);
   }
-  if (params.search_lang || params.language) {
-    url.searchParams.set("search_lang", (params.search_lang || params.language)!);
+  if (params.search_lang) {
+    url.searchParams.set("search_lang", params.search_lang);
   }
   if (params.ui_lang) {
     url.searchParams.set("ui_lang", params.ui_lang);
   }
   if (params.freshness) {
     url.searchParams.set("freshness", params.freshness);
-  } else if (params.dateAfter && params.dateBefore) {
-    url.searchParams.set("freshness", `${params.dateAfter}to${params.dateBefore}`);
-  } else if (params.dateAfter) {
-    url.searchParams.set(
-      "freshness",
-      `${params.dateAfter}to${new Date().toISOString().slice(0, 10)}`,
-    );
-  } else if (params.dateBefore) {
-    url.searchParams.set("freshness", `1970-01-01to${params.dateBefore}`);
   }
 
   const mapped = await withTrustedWebSearchEndpoint(
@@ -1465,23 +1711,29 @@ export function createWebSearchTool(options?: {
   const grokConfig = resolveGrokConfig(search);
   const geminiConfig = resolveGeminiConfig(search);
   const kimiConfig = resolveKimiConfig(search);
+  const metasoConfig = resolveMetasoConfig(search);
+  const qwenConfig = resolveQwenConfig(search);
 
   const description =
     provider === "perplexity"
-      ? "Search the web using the Perplexity Search API. Returns structured results (title, URL, snippet) for fast research. Supports domain, region, language, and freshness filtering."
+      ? "Search the web using Perplexity Sonar (direct or via OpenRouter). Returns AI-synthesized answers with citations from real-time web search."
       : provider === "grok"
         ? "Search the web using xAI Grok. Returns AI-synthesized answers with citations from real-time web search."
         : provider === "kimi"
           ? "Search the web using Kimi by Moonshot. Returns AI-synthesized answers with citations from native $web_search."
           : provider === "gemini"
             ? "Search the web using Gemini with Google Search grounding. Returns AI-synthesized answers with citations from Google Search."
-            : "Search the web using Brave Search API. Supports region-specific and localized search via country and language parameters. Returns titles, URLs, and snippets for fast research.";
+            : provider === "metaso"
+              ? "Search the web using Metaso (秘塔搜索). Returns AI-synthesized answers with citations, optimized for Chinese content."
+              : provider === "qwen"
+                ? "Search the web using Qwen (通义千问) with built-in search. Returns AI-synthesized answers with citations from DashScope."
+                : "Search the web using Brave Search API. Supports region-specific and localized search via country and language parameters. Returns titles, URLs, and snippets for fast research.";
 
   return {
     label: "Web Search",
     name: "web_search",
     description,
-    parameters: createWebSearchSchema(provider),
+    parameters: WebSearchSchema,
     execute: async (_toolCallId, args) => {
       const perplexityAuth =
         provider === "perplexity" ? resolvePerplexityApiKey(perplexityConfig) : undefined;
@@ -1494,7 +1746,11 @@ export function createWebSearchTool(options?: {
               ? resolveKimiApiKey(kimiConfig)
               : provider === "gemini"
                 ? resolveGeminiApiKey(geminiConfig)
-                : resolveSearchApiKey(search);
+                : provider === "metaso"
+                  ? resolveMetasoApiKey(metasoConfig)
+                  : provider === "qwen"
+                    ? resolveQwenApiKey(qwenConfig)
+                    : resolveSearchApiKey(search);
 
       if (!apiKey) {
         return jsonResult(missingSearchKeyPayload(provider));
@@ -1504,40 +1760,17 @@ export function createWebSearchTool(options?: {
       const count =
         readNumberParam(params, "count", { integer: true }) ?? search?.maxResults ?? undefined;
       const country = readStringParam(params, "country");
-      if (country && provider !== "brave" && provider !== "perplexity") {
-        return jsonResult({
-          error: "unsupported_country",
-          message: `country filtering is not supported by the ${provider} provider. Only Brave and Perplexity support country filtering.`,
-          docs: "https://docs.openclaw.ai/tools/web",
-        });
-      }
-      const language = readStringParam(params, "language");
-      if (language && provider !== "brave" && provider !== "perplexity") {
-        return jsonResult({
-          error: "unsupported_language",
-          message: `language filtering is not supported by the ${provider} provider. Only Brave and Perplexity support language filtering.`,
-          docs: "https://docs.openclaw.ai/tools/web",
-        });
-      }
-      if (language && provider === "perplexity" && !/^[a-z]{2}$/i.test(language)) {
-        return jsonResult({
-          error: "invalid_language",
-          message: "language must be a 2-letter ISO 639-1 code like 'en', 'de', or 'fr'.",
-          docs: "https://docs.openclaw.ai/tools/web",
-        });
-      }
-      const search_lang = readStringParam(params, "search_lang");
-      const ui_lang = readStringParam(params, "ui_lang");
-      // For Brave, accept both `language` (unified) and `search_lang`
+      const rawSearchLang = readStringParam(params, "search_lang");
+      const rawUiLang = readStringParam(params, "ui_lang");
       const normalizedBraveLanguageParams =
         provider === "brave"
-          ? normalizeBraveLanguageParams({ search_lang: search_lang || language, ui_lang })
-          : { search_lang: language, ui_lang };
+          ? normalizeBraveLanguageParams({ search_lang: rawSearchLang, ui_lang: rawUiLang })
+          : { search_lang: rawSearchLang, ui_lang: rawUiLang };
       if (normalizedBraveLanguageParams.invalidField === "search_lang") {
         return jsonResult({
           error: "invalid_search_lang",
           message:
-            "search_lang must be a Brave-supported language code like 'en', 'en-gb', 'zh-hans', or 'zh-hant'.",
+            "search_lang must be a 2-letter ISO language code like 'en' (not a locale like 'en-US').",
           docs: "https://docs.openclaw.ai/tools/web",
         });
       }
@@ -1548,96 +1781,25 @@ export function createWebSearchTool(options?: {
           docs: "https://docs.openclaw.ai/tools/web",
         });
       }
-      const resolvedSearchLang = normalizedBraveLanguageParams.search_lang;
-      const resolvedUiLang = normalizedBraveLanguageParams.ui_lang;
+      const search_lang = normalizedBraveLanguageParams.search_lang;
+      const ui_lang = normalizedBraveLanguageParams.ui_lang;
       const rawFreshness = readStringParam(params, "freshness");
       if (rawFreshness && provider !== "brave" && provider !== "perplexity") {
         return jsonResult({
           error: "unsupported_freshness",
-          message: `freshness filtering is not supported by the ${provider} provider. Only Brave and Perplexity support freshness.`,
+          message: "freshness is only supported by the Brave and Perplexity web_search providers.",
           docs: "https://docs.openclaw.ai/tools/web",
         });
       }
-      const freshness = rawFreshness ? normalizeFreshness(rawFreshness, provider) : undefined;
+      const freshness = rawFreshness ? normalizeFreshness(rawFreshness) : undefined;
       if (rawFreshness && !freshness) {
         return jsonResult({
           error: "invalid_freshness",
-          message: "freshness must be day, week, month, or year.",
-          docs: "https://docs.openclaw.ai/tools/web",
-        });
-      }
-      const rawDateAfter = readStringParam(params, "date_after");
-      const rawDateBefore = readStringParam(params, "date_before");
-      if (rawFreshness && (rawDateAfter || rawDateBefore)) {
-        return jsonResult({
-          error: "conflicting_time_filters",
           message:
-            "freshness and date_after/date_before cannot be used together. Use either freshness (day/week/month/year) or a date range (date_after/date_before), not both.",
+            "freshness must be one of pd, pw, pm, py, or a range like YYYY-MM-DDtoYYYY-MM-DD.",
           docs: "https://docs.openclaw.ai/tools/web",
         });
       }
-      if ((rawDateAfter || rawDateBefore) && provider !== "brave" && provider !== "perplexity") {
-        return jsonResult({
-          error: "unsupported_date_filter",
-          message: `date_after/date_before filtering is not supported by the ${provider} provider. Only Brave and Perplexity support date filtering.`,
-          docs: "https://docs.openclaw.ai/tools/web",
-        });
-      }
-      const dateAfter = rawDateAfter ? normalizeToIsoDate(rawDateAfter) : undefined;
-      if (rawDateAfter && !dateAfter) {
-        return jsonResult({
-          error: "invalid_date",
-          message: "date_after must be YYYY-MM-DD format.",
-          docs: "https://docs.openclaw.ai/tools/web",
-        });
-      }
-      const dateBefore = rawDateBefore ? normalizeToIsoDate(rawDateBefore) : undefined;
-      if (rawDateBefore && !dateBefore) {
-        return jsonResult({
-          error: "invalid_date",
-          message: "date_before must be YYYY-MM-DD format.",
-          docs: "https://docs.openclaw.ai/tools/web",
-        });
-      }
-      if (dateAfter && dateBefore && dateAfter > dateBefore) {
-        return jsonResult({
-          error: "invalid_date_range",
-          message: "date_after must be before date_before.",
-          docs: "https://docs.openclaw.ai/tools/web",
-        });
-      }
-      const domainFilter = readStringArrayParam(params, "domain_filter");
-      if (domainFilter && domainFilter.length > 0 && provider !== "perplexity") {
-        return jsonResult({
-          error: "unsupported_domain_filter",
-          message: `domain_filter is not supported by the ${provider} provider. Only Perplexity supports domain filtering.`,
-          docs: "https://docs.openclaw.ai/tools/web",
-        });
-      }
-
-      if (domainFilter && domainFilter.length > 0) {
-        const hasDenylist = domainFilter.some((d) => d.startsWith("-"));
-        const hasAllowlist = domainFilter.some((d) => !d.startsWith("-"));
-        if (hasDenylist && hasAllowlist) {
-          return jsonResult({
-            error: "invalid_domain_filter",
-            message:
-              "domain_filter cannot mix allowlist and denylist entries. Use either all positive entries (allowlist) or all entries prefixed with '-' (denylist).",
-            docs: "https://docs.openclaw.ai/tools/web",
-          });
-        }
-        if (domainFilter.length > 20) {
-          return jsonResult({
-            error: "invalid_domain_filter",
-            message: "domain_filter supports a maximum of 20 domains.",
-            docs: "https://docs.openclaw.ai/tools/web",
-          });
-        }
-      }
-
-      const maxTokens = readNumberParam(params, "max_tokens", { integer: true });
-      const maxTokensPerPage = readNumberParam(params, "max_tokens_per_page", { integer: true });
-
       const result = await runWebSearch({
         query,
         count: resolveSearchCount(count, DEFAULT_SEARCH_COUNT),
@@ -1646,20 +1808,25 @@ export function createWebSearchTool(options?: {
         cacheTtlMs: resolveCacheTtlMs(search?.cacheTtlMinutes, DEFAULT_CACHE_TTL_MINUTES),
         provider,
         country,
-        language,
-        search_lang: resolvedSearchLang,
-        ui_lang: resolvedUiLang,
+        search_lang,
+        ui_lang,
         freshness,
-        dateAfter,
-        dateBefore,
-        searchDomainFilter: domainFilter,
-        maxTokens: maxTokens ?? undefined,
-        maxTokensPerPage: maxTokensPerPage ?? undefined,
+        perplexityBaseUrl: resolvePerplexityBaseUrl(
+          perplexityConfig,
+          perplexityAuth?.source,
+          perplexityAuth?.apiKey,
+        ),
+        perplexityModel: resolvePerplexityModel(perplexityConfig),
         grokModel: resolveGrokModel(grokConfig),
         grokInlineCitations: resolveGrokInlineCitations(grokConfig),
         geminiModel: resolveGeminiModel(geminiConfig),
         kimiBaseUrl: resolveKimiBaseUrl(kimiConfig),
         kimiModel: resolveKimiModel(kimiConfig),
+        metasoBaseUrl: resolveMetasoBaseUrl(metasoConfig),
+        metasoIncludeSummary: resolveMetasoIncludeSummary(metasoConfig),
+        qwenBaseUrl: resolveQwenBaseUrl(qwenConfig),
+        qwenModel: resolveQwenModel(qwenConfig),
+        qwenEnableThinking: resolveQwenEnableThinking(qwenConfig),
       });
       return jsonResult(result);
     },
@@ -1668,13 +1835,13 @@ export function createWebSearchTool(options?: {
 
 export const __testing = {
   resolveSearchProvider,
+  inferPerplexityBaseUrlFromApiKey,
+  resolvePerplexityBaseUrl,
+  isDirectPerplexityBaseUrl,
+  resolvePerplexityRequestModel,
   normalizeBraveLanguageParams,
   normalizeFreshness,
-  normalizeToIsoDate,
-  isoToPerplexityDate,
-  SEARCH_CACHE,
-  FRESHNESS_TO_RECENCY,
-  RECENCY_TO_FRESHNESS,
+  freshnessToPerplexityRecency,
   resolveGrokApiKey,
   resolveGrokModel,
   resolveGrokInlineCitations,
@@ -1683,5 +1850,12 @@ export const __testing = {
   resolveKimiModel,
   resolveKimiBaseUrl,
   extractKimiCitations,
-  resolveRedirectUrl: resolveCitationRedirectUrl,
+  resolveRedirectUrl,
+  resolveMetasoApiKey,
+  resolveMetasoBaseUrl,
+  resolveMetasoIncludeSummary,
+  resolveQwenApiKey,
+  resolveQwenBaseUrl,
+  resolveQwenModel,
+  resolveQwenEnableThinking,
 } as const;
