@@ -52,7 +52,7 @@ The macOS app expects a global `openclaw` CLI install to manage background tasks
 Alternatively, install it manually:
 
 ```bash
-npm install -g openclaw@<version>
+npm install -g @ww-ai-lab/openclaw@<version>
 ```
 
 ## Troubleshooting
