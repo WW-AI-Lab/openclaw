@@ -19,7 +19,7 @@ running (or attaches to an existing local Gateway if one is already running).
 You need Node 22+ on the Mac, then install `openclaw` globally:
 
 ```bash
-npm install -g openclaw@<version>
+npm install -g @ww-ai-lab/openclaw@<version>
 ```
 
 The macOS app’s **Install CLI** button runs the same flow via npm/pnpm (bun not recommended for Gateway runtime).
