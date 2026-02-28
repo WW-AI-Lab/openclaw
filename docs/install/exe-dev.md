@@ -117,7 +117,7 @@ with email auth.
 ## Updating
 
 ```bash
-npm i -g openclaw@latest
+npm i -g @ww-ai-lab/openclaw@latest
 openclaw doctor
 openclaw gateway restart
 openclaw health

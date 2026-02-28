@@ -75,7 +75,7 @@ For VPS/cloud hosts, avoid third-party "1-click" marketplace images when possibl
     <Tabs>
       <Tab title="npm">
         ```bash
-        npm install -g openclaw@latest
+        npm install -g @ww-ai-lab/openclaw@latest
         openclaw onboard --install-daemon
         ```
 
@@ -91,7 +91,7 @@ For VPS/cloud hosts, avoid third-party "1-click" marketplace images when possibl
       </Tab>
       <Tab title="pnpm">
         ```bash
-        pnpm add -g openclaw@latest
+        pnpm add -g @ww-ai-lab/openclaw@latest
         pnpm approve-builds -g        # approve openclaw, node-llama-cpp, sharp, etc.
         openclaw onboard --install-daemon
         ```

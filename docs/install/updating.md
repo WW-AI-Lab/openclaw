@@ -48,11 +48,11 @@ Notes:
 Global install (pick one):
 
 ```bash
-npm i -g openclaw@latest
+npm i -g @ww-ai-lab/openclaw@latest
 ```
 
 ```bash
-pnpm add -g openclaw@latest
+pnpm add -g @ww-ai-lab/openclaw@latest
 ```
 
 We do **not** recommend Bun for the Gateway runtime (WhatsApp/Telegram bugs).
