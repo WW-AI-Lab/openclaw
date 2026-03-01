@@ -52,8 +52,8 @@ Model note: while any model is supported, I strongly recommend **Anthropic Pro/M
 Runtime: **Node ≥22**.
 
 ```bash
-npm install -g openclaw@latest
-# or: pnpm add -g openclaw@latest
+npm install -g @ww-ai-lab/openclaw@latest
+# or: pnpm add -g @ww-ai-lab/openclaw@latest
 
 openclaw onboard --install-daemon
 ```
@@ -328,6 +328,60 @@ Minimal `~/.openclaw/openclaw.json` (model + defaults):
 ```
 
 [Full configuration reference (all keys + examples).](https://docs.openclaw.ai/gateway/configuration)
+
+### Web Search (Metaso / Qwen / more)
+
+OpenClaw supports multiple web search providers. Set your API key in config or via environment variables:
+
+```json5
+{
+  tools: {
+    web: {
+      search: {
+        // Available providers: "brave", "perplexity", "grok", "gemini", "kimi", "metaso", "qwen"
+        provider: "metaso", // or "qwen"
+
+        // Metaso (秘塔搜索) - optimized for Chinese content
+        metaso: {
+          apiKey: "mk-your-metaso-api-key", // or set METASO_API_KEY env var
+          baseUrl: "https://metaso.cn", // optional, default shown
+          includeSummary: true, // include AI-generated summaries
+        },
+
+        // Qwen (Alibaba DashScope) - model with built-in search
+        qwen: {
+          apiKey: "sk-your-dashscope-api-key", // or set DASHSCOPE_API_KEY env var
+          baseUrl: "https://dashscope.aliyuncs.com/api/v2/apps/protocols/compatible-mode/v1", // optional
+          model: "qwen3.5-plus", // model to use
+          enableThinking: false, // enable deeper reasoning mode
+        },
+
+        // Brave Search (default, requires BRAVE_API_KEY)
+        // apiKey: "your-brave-api-key",
+
+        // Perplexity (requires PERPLEXITY_API_KEY or OPENROUTER_API_KEY)
+        // perplexity: {
+        //   apiKey: "pplx-your-key",
+        //   baseUrl: "https://api.perplexity.ai",  // or "https://openrouter.ai/api/v1"
+        //   model: "perplexity/sonar-pro",
+        // },
+      },
+    },
+  },
+}
+```
+
+**Environment variables** (alternatives to config):
+
+- `BRAVE_API_KEY` - Brave Search
+- `PERPLEXITY_API_KEY` / `OPENROUTER_API_KEY` - Perplexity
+- `XAI_API_KEY` - Grok
+- `GEMINI_API_KEY` - Gemini
+- `KIMI_API_KEY` / `MOONSHOT_API_KEY` - Kimi
+- `METASO_API_KEY` - Metaso (秘塔搜索)
+- `DASHSCOPE_API_KEY` - Qwen (阿里云百炼)
+
+[Web search docs](https://docs.openclaw.ai/tools/web)
 
 ## Security model (important)
 

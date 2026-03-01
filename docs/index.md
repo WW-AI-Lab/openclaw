@@ -98,7 +98,7 @@ The Gateway is the single source of truth for sessions, routing, and channel con
 <Steps>
   <Step title="Install OpenClaw">
     ```bash
-    npm install -g openclaw@latest
+    npm install -g @ww-ai-lab/openclaw@latest
     ```
   </Step>
   <Step title="Onboard and install the service">
