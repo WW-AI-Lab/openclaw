@@ -6,10 +6,8 @@ import { wrapWebContent } from "../../security/external-content.js";
 import { normalizeSecretInput } from "../../utils/normalize-secret-input.js";
 import type { AnyAgentTool } from "./common.js";
 import { jsonResult, readNumberParam, readStringParam } from "./common.js";
-import {
-  WEB_TOOLS_TRUSTED_NETWORK_SSRF_POLICY,
-  withWebToolsNetworkGuard,
-} from "./web-guarded-fetch.js";
+import { withTrustedWebToolsEndpoint } from "./web-guarded-fetch.js";
+import { resolveCitationRedirectUrl } from "./web-search-citation-redirect.js";
 import {
   CacheEntry,
   DEFAULT_CACHE_TTL_MINUTES,
@@ -739,12 +737,11 @@ async function withTrustedWebSearchEndpoint<T>(
   },
   run: (response: Response) => Promise<T>,
 ): Promise<T> {
-  return withWebToolsNetworkGuard(
+  return withTrustedWebToolsEndpoint(
     {
       url: params.url,
       init: params.init,
       timeoutSeconds: params.timeoutSeconds,
-      policy: WEB_TOOLS_TRUSTED_NETWORK_SSRF_POLICY,
     },
     async ({ response }) => run(response),
   );
@@ -826,7 +823,7 @@ async function runGeminiSearch(params: {
         const batch = rawCitations.slice(i, i + MAX_CONCURRENT_REDIRECTS);
         const resolved = await Promise.all(
           batch.map(async (citation) => {
-            const resolvedUrl = await resolveRedirectUrl(citation.url);
+            const resolvedUrl = await resolveCitationRedirectUrl(citation.url);
             return { ...citation, url: resolvedUrl };
           }),
         );
@@ -836,28 +833,6 @@ async function runGeminiSearch(params: {
       return { content, citations };
     },
   );
-}
-
-const REDIRECT_TIMEOUT_MS = 5000;
-
-/**
- * Resolve a redirect URL to its final destination using a HEAD request.
- * Returns the original URL if resolution fails or times out.
- */
-async function resolveRedirectUrl(url: string): Promise<string> {
-  try {
-    return await withWebToolsNetworkGuard(
-      {
-        url,
-        init: { method: "HEAD" },
-        timeoutMs: REDIRECT_TIMEOUT_MS,
-        policy: WEB_TOOLS_TRUSTED_NETWORK_SSRF_POLICY,
-      },
-      async ({ finalUrl }) => finalUrl || url,
-    );
-  } catch {
-    return url;
-  }
 }
 
 function resolveSearchCount(value: unknown, fallback: number): number {
@@ -1405,8 +1380,10 @@ async function runQwenSearch(params: {
       const data = (await res.json()) as QwenSearchResponse;
       const content = data.choices?.[0]?.message?.content ?? "No response";
       // Qwen's search-enabled completions embed citations as markdown links
-      const urlRegex = /https?:\/\/[^\s)]+/g;
-      const urls = content.match(urlRegex) ?? [];
+      const urlRegex = /https?:\/\/[^\s)[\]{}]+/g;
+      const urls = (content.match(urlRegex) ?? []).map((u) =>
+        u.replace(/[.,;:!?。，；：！？]+$/, ""),
+      );
       const citations = [...new Set(urls)];
 
       return { content, citations };
@@ -1448,7 +1425,7 @@ async function runWebSearch(params: {
           : params.provider === "gemini"
             ? `${params.provider}:${params.query}:${params.geminiModel ?? DEFAULT_GEMINI_MODEL}`
             : params.provider === "metaso"
-              ? `${params.provider}:${params.query}:${params.metasoBaseUrl ?? DEFAULT_METASO_BASE_URL}:${String(params.metasoIncludeSummary ?? true)}`
+              ? `${params.provider}:${params.query}:${params.count}:${params.metasoBaseUrl ?? DEFAULT_METASO_BASE_URL}:${String(params.metasoIncludeSummary ?? true)}`
               : params.provider === "qwen"
                 ? `${params.provider}:${params.query}:${params.qwenBaseUrl ?? DEFAULT_QWEN_BASE_URL}:${params.qwenModel ?? DEFAULT_QWEN_MODEL}:${String(params.qwenEnableThinking ?? false)}`
                 : `${params.provider}:${params.query}:${params.grokModel ?? DEFAULT_GROK_MODEL}:${String(params.grokInlineCitations ?? false)}`,
@@ -1851,7 +1828,7 @@ export const __testing = {
   resolveKimiModel,
   resolveKimiBaseUrl,
   extractKimiCitations,
-  resolveRedirectUrl,
+  resolveRedirectUrl: resolveCitationRedirectUrl,
   resolveMetasoApiKey,
   resolveMetasoBaseUrl,
   resolveMetasoIncludeSummary,
