@@ -327,6 +327,23 @@ export const ToolsWebSearchSchema = z
       })
       .strict()
       .optional(),
+    metaso: z
+      .object({
+        apiKey: z.string().optional().register(sensitive),
+        baseUrl: z.string().optional(),
+        includeSummary: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
+    qwen: z
+      .object({
+        apiKey: z.string().optional().register(sensitive),
+        baseUrl: z.string().optional(),
+        model: z.string().optional(),
+        enableThinking: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .optional();
