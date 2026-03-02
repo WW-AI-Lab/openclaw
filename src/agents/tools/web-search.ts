@@ -1419,8 +1419,10 @@ async function runQwenSearch(params: {
       const data = (await res.json()) as QwenSearchResponse;
       const content = data.choices?.[0]?.message?.content ?? "No response";
       // Qwen's search-enabled completions embed citations as markdown links
-      const urlRegex = /https?:\/\/[^\s)]+/g;
-      const urls = content.match(urlRegex) ?? [];
+      const urlRegex = /https?:\/\/[^\s)[\]{}]+/g;
+      const urls = (content.match(urlRegex) ?? []).map((u) =>
+        u.replace(/[.,;:!?。，；：！？]+$/, ""),
+      );
       const citations = [...new Set(urls)];
 
       return { content, citations };
