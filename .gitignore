@@ -124,3 +124,9 @@ dist/protocol.schema.json
 
 # OpenClaw Office (独立 Git 仓库)
 OpenClaw-Office/
+openspec/
+.codex/
+.cursor/
+.claude/
+.github/
+.pi/
