@@ -209,6 +209,16 @@ Docs: https://docs.openclaw.ai
 - Agents/failover: classify ZenMux quota-refresh `402` responses as `rate_limit` so model fallback retries continue instead of stopping on a temporary subscription window. (#43917) thanks @bwjoke.
 - Agents/failover: classify HTTP 422 malformed-request responses as `format` and recognize OpenRouter "requires more credits" billing errors so provider fallback triggers instead of surfacing raw errors. (#43823) thanks @jnMetaCode.
 
+## 2026.3.9-5
+
+### Changes
+
+### Breaking
+
+### Fixes
+
+- Gateway/agent bootstrap: harden package-root detection for scoped global npm installs so `docs/reference/templates/AGENTS.md` resolves correctly and UI chat + Feishu inbound dispatch no longer fail with `Missing workspace template`.
+
 ## 2026.3.8
 
 ### Changes

@@ -102,6 +102,17 @@ describe("loadSettings default gateway URL derivation", () => {
     expect(loadSettings().gatewayUrl).toBe(expectedGatewayUrl("/apps/openclaw"));
   });
 
+  it("does not reuse the built-in control ui route base as the gateway ws path", async () => {
+    setTestLocation({
+      protocol: "http:",
+      host: "gateway.example:18789",
+      pathname: "/__openclaw__/control/chat",
+    });
+
+    const { loadSettings } = await import("./storage.ts");
+    expect(loadSettings().gatewayUrl).toBe(expectedGatewayUrl(""));
+  });
+
   it("ignores and scrubs legacy persisted tokens", async () => {
     setTestLocation({
       protocol: "https:",

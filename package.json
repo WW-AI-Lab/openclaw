@@ -284,6 +284,7 @@
     "lint:tmp:no-random-messaging": "node scripts/check-no-random-messaging-tmp.mjs",
     "lint:tmp:no-raw-channel-fetch": "node scripts/check-no-raw-channel-fetch.mjs",
     "lint:ui:no-raw-window-open": "node scripts/check-no-raw-window-open.mjs",
+    "lint:version-date": "node scripts/lint-version-date.mjs",
     "lint:webhook:no-low-level-body-read": "node scripts/check-webhook-auth-body-order.mjs",
     "mac:open": "open dist/OpenClaw.app",
     "mac:package": "bash scripts/package-mac-app.sh",
@@ -292,13 +293,17 @@
     "openclaw": "node scripts/run-node.mjs",
     "openclaw:rpc": "node scripts/run-node.mjs agent --mode rpc --json",
     "plugins:sync": "node --import tsx scripts/sync-plugin-versions.ts",
-    "prepack": "pnpm build && pnpm ui:build",
+    "prepack": "pnpm lint:version-date && pnpm build && pnpm ui:build",
     "prepare": "command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1 && git config core.hooksPath git-hooks || exit 0",
     "protocol:check": "pnpm protocol:gen && pnpm protocol:gen:swift && git diff --exit-code -- dist/protocol.schema.json apps/macos/Sources/OpenClawProtocol/GatewayModels.swift apps/shared/OpenClawKit/Sources/OpenClawProtocol/GatewayModels.swift",
     "protocol:gen": "node --import tsx scripts/protocol-gen.ts",
     "protocol:gen:swift": "node --import tsx scripts/protocol-gen-swift.ts",
+<<<<<<< HEAD
     "release:check": "node --import tsx scripts/release-check.ts",
     "release:openclaw:npm:check": "node --import tsx scripts/openclaw-npm-release-check.ts",
+=======
+    "release:check": "pnpm lint:version-date && node --import tsx scripts/release-check.ts",
+>>>>>>> 817dec814f (release: harden package root + enforce same-day versioning)
     "start": "node scripts/run-node.mjs",
     "test": "node scripts/test-parallel.mjs",
     "test:all": "pnpm lint && pnpm build && pnpm test && pnpm test:e2e && pnpm test:live && pnpm test:docker:all",
