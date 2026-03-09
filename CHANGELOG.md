@@ -44,6 +44,16 @@ Docs: https://docs.openclaw.ai
 - Tools/web search: treat Brave `llm-context` grounding snippets as plain strings so `web_search` no longer returns empty snippet arrays in LLM Context mode. (#41387) thanks @zheliu2.
 - Telegram/exec approvals: reject `/approve` commands aimed at other bots, keep deterministic approval prompts visible when tool-result delivery fails, and stop resolved exact IDs from matching other pending approvals by prefix. (#37233) Thanks @huntharo.
 
+## 2026.3.9-5
+
+### Changes
+
+### Breaking
+
+### Fixes
+
+- Gateway/agent bootstrap: harden package-root detection for scoped global npm installs so `docs/reference/templates/AGENTS.md` resolves correctly and UI chat + Feishu inbound dispatch no longer fail with `Missing workspace template`.
+
 ## 2026.3.8
 
 ### Changes
