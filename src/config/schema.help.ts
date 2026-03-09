@@ -659,7 +659,7 @@ export const FIELD_HELP: Record<string, string> = {
   "tools.message.broadcast.enabled": "Enable broadcast action (default: true).",
   "tools.web.search.enabled": "Enable the web_search tool (requires a provider API key).",
   "tools.web.search.provider":
-    'Search provider ("brave", "gemini", "grok", "kimi", or "perplexity"). Auto-detected from available API keys if omitted.',
+    'Search provider ("brave", "perplexity", "grok", "gemini", "kimi", "metaso", or "qwen"). Auto-detected from available API keys if omitted.',
   "tools.web.search.apiKey": "Brave Search API key (fallback: BRAVE_API_KEY env var).",
   "tools.web.search.maxResults": "Number of results to return (1-10).",
   "tools.web.search.timeoutSeconds": "Timeout in seconds for web_search requests.",
@@ -676,6 +676,16 @@ export const FIELD_HELP: Record<string, string> = {
   "tools.web.search.kimi.baseUrl":
     'Kimi base URL override (default: "https://api.moonshot.ai/v1").',
   "tools.web.search.kimi.model": 'Kimi model override (default: "moonshot-v1-128k").',
+  "tools.web.search.metaso.apiKey": "Metaso API key (fallback: METASO_API_KEY env var).",
+  "tools.web.search.metaso.baseUrl": 'Metaso base URL override (default: "https://metaso.cn").',
+  "tools.web.search.metaso.includeSummary":
+    "Include summary text in Metaso search responses (default: true).",
+  "tools.web.search.qwen.apiKey":
+    "DashScope API key for Qwen web search (fallback: DASHSCOPE_API_KEY env var).",
+  "tools.web.search.qwen.baseUrl":
+    'DashScope base URL override (default: "https://dashscope.aliyuncs.com/compatible-mode/v1").',
+  "tools.web.search.qwen.model": 'Qwen model override (default: "qwen-plus").',
+  "tools.web.search.qwen.enableThinking": "Enable Qwen thinking mode (default: false).",
   "tools.web.search.perplexity.apiKey":
     "Perplexity or OpenRouter API key (fallback: PERPLEXITY_API_KEY or OPENROUTER_API_KEY env var). Direct Perplexity keys default to the Search API; OpenRouter keys use Sonar chat completions.",
   "tools.web.search.perplexity.baseUrl":
