@@ -76,6 +76,39 @@ describe("web search provider config", () => {
 
     expect(res.ok).toBe(false);
   });
+
+  it("accepts metaso provider and config", () => {
+    const res = validateConfigObject(
+      buildWebSearchProviderConfig({
+        enabled: true,
+        provider: "metaso",
+        providerConfig: {
+          apiKey: "test-metaso-key", // pragma: allowlist secret
+          baseUrl: "https://metaso.cn",
+          includeSummary: true,
+        },
+      }),
+    );
+
+    expect(res.ok).toBe(true);
+  });
+
+  it("accepts qwen provider and config", () => {
+    const res = validateConfigObject(
+      buildWebSearchProviderConfig({
+        enabled: true,
+        provider: "qwen",
+        providerConfig: {
+          apiKey: "test-qwen-key", // pragma: allowlist secret
+          baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+          model: "qwen-plus",
+          enableThinking: false,
+        },
+      }),
+    );
+
+    expect(res.ok).toBe(true);
+  });
 });
 
 describe("web search provider auto-detection", () => {
@@ -91,6 +124,8 @@ describe("web search provider auto-detection", () => {
     delete process.env.XAI_API_KEY;
     delete process.env.KIMI_API_KEY;
     delete process.env.MOONSHOT_API_KEY;
+    delete process.env.METASO_API_KEY;
+    delete process.env.DASHSCOPE_API_KEY;
   });
 
   afterEach(() => {
@@ -142,7 +177,17 @@ describe("web search provider auto-detection", () => {
     expect(resolveSearchProvider({})).toBe("kimi");
   });
 
-  it("follows alphabetical order — brave wins when multiple keys available", () => {
+  it("auto-detects metaso when only METASO_API_KEY is set", () => {
+    process.env.METASO_API_KEY = "test-metaso-key"; // pragma: allowlist secret
+    expect(resolveSearchProvider({})).toBe("metaso");
+  });
+
+  it("auto-detects qwen when only DASHSCOPE_API_KEY is set", () => {
+    process.env.DASHSCOPE_API_KEY = "test-dashscope-key"; // pragma: allowlist secret
+    expect(resolveSearchProvider({})).toBe("qwen");
+  });
+
+  it("follows priority order — brave wins when multiple keys available", () => {
     process.env.BRAVE_API_KEY = "test-brave-key"; // pragma: allowlist secret
     process.env.GEMINI_API_KEY = "test-gemini-key"; // pragma: allowlist secret
     process.env.PERPLEXITY_API_KEY = "test-perplexity-key"; // pragma: allowlist secret
@@ -171,5 +216,14 @@ describe("web search provider auto-detection", () => {
         typeof resolveSearchProvider
       >[0]),
     ).toBe("gemini");
+  });
+
+  it("explicit qwen provider always wins regardless of keys", () => {
+    process.env.BRAVE_API_KEY = "test-brave-key"; // pragma: allowlist secret
+    expect(
+      resolveSearchProvider({ provider: "qwen" } as unknown as Parameters<
+        typeof resolveSearchProvider
+      >[0]),
+    ).toBe("qwen");
   });
 });
