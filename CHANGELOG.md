@@ -121,6 +121,16 @@ Docs: https://docs.openclaw.ai
 - Gateway/config errors: surface up to three validation issues in top-level `config.set`, `config.patch`, and `config.apply` error messages while preserving structured issue details. (#42664) Thanks @huntharo.
 - Hooks/plugin context parity followup: pass `trigger` and `channelId` through embedded `llm_input`, `agent_end`, and `llm_output` hook contexts so plugins receive the same agent metadata across hook phases. (#42362) Thanks @zhoulf1006.
 
+## 2026.3.9-5
+
+### Changes
+
+### Breaking
+
+### Fixes
+
+- Gateway/agent bootstrap: harden package-root detection for scoped global npm installs so `docs/reference/templates/AGENTS.md` resolves correctly and UI chat + Feishu inbound dispatch no longer fail with `Missing workspace template`.
+
 ## 2026.3.8
 
 ### Changes

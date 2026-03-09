@@ -5,7 +5,11 @@ const TOKEN_SESSION_KEY_PREFIX = "openclaw.control.token.v1:";
 type PersistedUiSettings = Omit<UiSettings, "token"> & { token?: never };
 
 import { isSupportedLocale } from "../i18n/index.ts";
-import { inferBasePathFromPathname, normalizeBasePath } from "./navigation.ts";
+import {
+  inferBasePathFromPathname,
+  isBuiltinControlUiRouteBase,
+  normalizeBasePath,
+} from "./navigation.ts";
 import type { ThemeMode } from "./theme.ts";
 
 export type UiSettings = {
@@ -95,9 +99,10 @@ export function loadSettings(): UiSettings {
       typeof window !== "undefined" &&
       typeof window.__OPENCLAW_CONTROL_UI_BASE_PATH__ === "string" &&
       window.__OPENCLAW_CONTROL_UI_BASE_PATH__.trim();
-    const basePath = configured
+    const inferredBasePath = configured
       ? normalizeBasePath(configured)
       : inferBasePathFromPathname(location.pathname);
+    const basePath = isBuiltinControlUiRouteBase(inferredBasePath) ? "" : inferredBasePath;
     return `${proto}://${location.host}${basePath}`;
   })();
 
