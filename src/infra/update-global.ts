@@ -6,6 +6,7 @@ import {
   PRIMARY_CORE_PACKAGE_NAME,
 } from "./core-package-name.js";
 import { pathExists } from "../utils.js";
+import { CORE_PACKAGE_NAMES, PRIMARY_CORE_PACKAGE_NAME } from "./core-package-name.js";
 
 export type GlobalInstallManager = "npm" | "pnpm" | "bun";
 

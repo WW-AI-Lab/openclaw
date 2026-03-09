@@ -4,6 +4,29 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CORE_PACKAGE_NAMES } from "./core-package-name.js";
 
+const CORE_PACKAGE_PATH_SUFFIXES = [
+  ["node_modules", "@ww-ai-lab", "openclaw"],
+  ["node_modules", "openclaw"],
+] as const;
+
+function hasSuffixPathParts(parts: string[], suffix: readonly string[]): boolean {
+  if (parts.length < suffix.length) {
+    return false;
+  }
+  const offset = parts.length - suffix.length;
+  for (let i = 0; i < suffix.length; i += 1) {
+    if (parts[offset + i] !== suffix[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function isKnownCorePackageDir(dir: string): boolean {
+  const parts = path.resolve(dir).split(path.sep).filter(Boolean);
+  return CORE_PACKAGE_PATH_SUFFIXES.some((suffix) => hasSuffixPathParts(parts, suffix));
+}
+
 async function readPackageName(dir: string): Promise<string | null> {
   try {
     const raw = await fs.readFile(path.join(dir, "package.json"), "utf-8");
@@ -30,6 +53,11 @@ async function findPackageRoot(startDir: string, maxDepth = 12): Promise<string 
     if (name && CORE_PACKAGE_NAMES.has(name)) {
       return current;
     }
+    // Guard against miscompiled package-name allowlists by accepting canonical
+    // npm install locations for both scoped and legacy package layouts.
+    if (isKnownCorePackageDir(current)) {
+      return current;
+    }
   }
   return null;
 }
@@ -38,6 +66,9 @@ function findPackageRootSync(startDir: string, maxDepth = 12): string | null {
   for (const current of iterAncestorDirs(startDir, maxDepth)) {
     const name = readPackageNameSync(current);
     if (name && CORE_PACKAGE_NAMES.has(name)) {
+      return current;
+    }
+    if (isKnownCorePackageDir(current)) {
       return current;
     }
   }

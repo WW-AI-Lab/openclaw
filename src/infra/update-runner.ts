@@ -6,6 +6,11 @@ import {
   resolveControlUiDistIndexHealth,
   resolveControlUiDistIndexPathForRoot,
 } from "./control-ui-assets.js";
+import {
+  CORE_PACKAGE_NAMES,
+  DEFAULT_UPDATE_TAG_PACKAGE_NAMES,
+  PRIMARY_CORE_PACKAGE_NAME,
+} from "./core-package-name.js";
 import { detectPackageManager as detectPackageManagerImpl } from "./detect-package-manager.js";
 import { readPackageName, readPackageVersion } from "./package-json.js";
 import { normalizePackageTagInput } from "./package-tag.js";

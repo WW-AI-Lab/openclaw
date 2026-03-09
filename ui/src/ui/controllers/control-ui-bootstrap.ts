@@ -22,9 +22,10 @@ export async function loadControlUiBootstrapConfig(state: ControlUiBootstrapStat
   }
 
   const basePath = normalizeBasePath(state.basePath ?? "");
-  const url = !basePath || isBuiltinControlUiRouteBase(basePath)
-    ? CONTROL_UI_BOOTSTRAP_CONFIG_PATH
-    : `${basePath}${CONTROL_UI_BOOTSTRAP_CONFIG_PATH}`;
+  const url =
+    !basePath || isBuiltinControlUiRouteBase(basePath)
+      ? CONTROL_UI_BOOTSTRAP_CONFIG_PATH
+      : `${basePath}${CONTROL_UI_BOOTSTRAP_CONFIG_PATH}`;
 
   try {
     const res = await fetch(url, {
