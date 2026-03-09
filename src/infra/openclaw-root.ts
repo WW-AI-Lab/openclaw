@@ -2,8 +2,30 @@ import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { CORE_PACKAGE_NAMES } from "./core-package-name.js";
 
-const CORE_PACKAGE_NAMES = new Set(["openclaw"]);
+const CORE_PACKAGE_PATH_SUFFIXES = [
+  ["node_modules", "@ww-ai-lab", "openclaw"],
+  ["node_modules", "openclaw"],
+] as const;
+
+function hasSuffixPathParts(parts: string[], suffix: readonly string[]): boolean {
+  if (parts.length < suffix.length) {
+    return false;
+  }
+  const offset = parts.length - suffix.length;
+  for (let i = 0; i < suffix.length; i += 1) {
+    if (parts[offset + i] !== suffix[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function isKnownCorePackageDir(dir: string): boolean {
+  const parts = path.resolve(dir).split(path.sep).filter(Boolean);
+  return CORE_PACKAGE_PATH_SUFFIXES.some((suffix) => hasSuffixPathParts(parts, suffix));
+}
 
 function parsePackageName(raw: string): string | null {
   const parsed = JSON.parse(raw) as { name?: unknown };
@@ -32,6 +54,11 @@ async function findPackageRoot(startDir: string, maxDepth = 12): Promise<string 
     if (name && CORE_PACKAGE_NAMES.has(name)) {
       return current;
     }
+    // Guard against miscompiled package-name allowlists by accepting canonical
+    // npm install locations for both scoped and legacy package layouts.
+    if (isKnownCorePackageDir(current)) {
+      return current;
+    }
   }
   return null;
 }
@@ -40,6 +67,9 @@ function findPackageRootSync(startDir: string, maxDepth = 12): string | null {
   for (const current of iterAncestorDirs(startDir, maxDepth)) {
     const name = readPackageNameSync(current);
     if (name && CORE_PACKAGE_NAMES.has(name)) {
+      return current;
+    }
+    if (isKnownCorePackageDir(current)) {
       return current;
     }
   }
@@ -76,9 +106,10 @@ function candidateDirsFromArgv1(argv1: string): string[] {
   const parts = normalized.split(path.sep);
   const binIndex = parts.lastIndexOf(".bin");
   if (binIndex > 0 && parts[binIndex - 1] === "node_modules") {
-    const binName = path.basename(normalized);
     const nodeModulesDir = parts.slice(0, binIndex).join(path.sep);
-    candidates.push(path.join(nodeModulesDir, binName));
+    for (const packageName of CORE_PACKAGE_NAMES) {
+      candidates.push(path.join(nodeModulesDir, ...packageName.split("/")));
+    }
   }
   return candidates;
 }

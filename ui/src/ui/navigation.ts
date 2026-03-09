@@ -66,6 +66,8 @@ const TAB_PATHS: Record<Tab, string> = {
 
 const PATH_TO_TAB = new Map(Object.entries(TAB_PATHS).map(([tab, path]) => [path, tab as Tab]));
 
+export const BUILTIN_CONTROL_UI_ROUTE_BASE = "/__openclaw__/control";
+
 export function normalizeBasePath(basePath: string): string {
   if (!basePath) {
     return "";
@@ -81,6 +83,10 @@ export function normalizeBasePath(basePath: string): string {
     base = base.slice(0, -1);
   }
   return base;
+}
+
+export function isBuiltinControlUiRouteBase(basePath: string): boolean {
+  return normalizeBasePath(basePath) === BUILTIN_CONTROL_UI_ROUTE_BASE;
 }
 
 export function normalizePath(path: string): string {

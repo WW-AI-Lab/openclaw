@@ -1,0 +1,9 @@
+export const PRIMARY_CORE_PACKAGE_NAME = "@ww-ai-lab/openclaw";
+export const LEGACY_CORE_PACKAGE_NAME = "openclaw";
+
+export const CORE_PACKAGE_NAMES = new Set([PRIMARY_CORE_PACKAGE_NAME, LEGACY_CORE_PACKAGE_NAME]);
+
+export const DEFAULT_UPDATE_TAG_PACKAGE_NAMES = [
+  PRIMARY_CORE_PACKAGE_NAME,
+  LEGACY_CORE_PACKAGE_NAME,
+] as const;

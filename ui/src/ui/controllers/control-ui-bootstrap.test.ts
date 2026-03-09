@@ -84,4 +84,26 @@ describe("loadControlUiBootstrapConfig", () => {
 
     vi.unstubAllGlobals();
   });
+
+  it("uses the absolute bootstrap path for the built-in control ui route base", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false });
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    const state = {
+      basePath: "/__openclaw__/control",
+      assistantName: "Assistant",
+      assistantAvatar: null,
+      assistantAgentId: null,
+      serverVersion: null,
+    };
+
+    await loadControlUiBootstrapConfig(state);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      CONTROL_UI_BOOTSTRAP_CONFIG_PATH,
+      expect.objectContaining({ method: "GET" }),
+    );
+
+    vi.unstubAllGlobals();
+  });
 });

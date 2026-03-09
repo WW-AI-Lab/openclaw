@@ -344,6 +344,16 @@ Docs: https://docs.openclaw.ai
 - macOS/remote gateway: stop PortGuardian from killing Docker Desktop and other external listeners on the gateway port in remote mode, so containerized and tunneled gateway setups no longer lose their port-forward owner on app startup. (#6755) Thanks @teslamint.
 - Feishu/streaming recovery: clear stale `streamingStartPromise` when card creation fails (HTTP 400) so subsequent messages can retry streaming instead of silently dropping all future replies. Fixes #43322.
 
+## 2026.3.9-5
+
+### Changes
+
+### Breaking
+
+### Fixes
+
+- Gateway/agent bootstrap: harden package-root detection for scoped global npm installs so `docs/reference/templates/AGENTS.md` resolves correctly and UI chat + Feishu inbound dispatch no longer fail with `Missing workspace template`.
+
 ## 2026.3.8
 
 ### Changes
