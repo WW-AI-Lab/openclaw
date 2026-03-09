@@ -42,6 +42,16 @@ Docs: https://docs.openclaw.ai
 - Plugins/context-engine model auth: expose `runtime.modelAuth` and plugin-sdk auth helpers so plugins can resolve provider/model API keys through the normal auth pipeline. (#41090) thanks @xinhuagu.
 - CLI/memory teardown: close cached memory search/index managers in the one-shot CLI shutdown path so watcher-backed memory caches no longer keep completed CLI runs alive after output finishes. (#40389) thanks @Julbarth.
 
+## 2026.3.9-5
+
+### Changes
+
+### Breaking
+
+### Fixes
+
+- Gateway/agent bootstrap: harden package-root detection for scoped global npm installs so `docs/reference/templates/AGENTS.md` resolves correctly and UI chat + Feishu inbound dispatch no longer fail with `Missing workspace template`.
+
 ## 2026.3.8
 
 ### Changes
