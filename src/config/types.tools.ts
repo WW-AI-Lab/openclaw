@@ -488,22 +488,27 @@ export type ToolsConfig = {
       /** Metaso-specific configuration (used when provider="metaso"). */
       metaso?: {
         /** Metaso API key (defaults to METASO_API_KEY env var). */
-        apiKey?: string;
-        /** Base URL for Metaso API (defaults to "https://metaso.cn"). */
+        apiKey?: SecretInput;
+        /** Base URL for API requests (defaults to "https://metaso.cn"). */
         baseUrl?: string;
-        /** Include AI-generated summary in results (default: true). */
+        /** Include summary in results (default: true). */
         includeSummary?: boolean;
       };
       /** Qwen-specific configuration (used when provider="qwen"). */
       qwen?: {
         /** DashScope API key (defaults to DASHSCOPE_API_KEY env var). */
-        apiKey?: string;
-        /** Base URL for DashScope API. */
+        apiKey?: SecretInput;
+        /** Base URL for DashScope-compatible API requests. */
         baseUrl?: string;
         /** Model to use (defaults to "qwen-plus"). */
         model?: string;
-        /** Enable deeper reasoning/thinking mode (default: false). */
+        /** Enable thinking mode (default: false). */
         enableThinking?: boolean;
+      };
+      /** Brave-specific configuration (used when provider="brave"). */
+      brave?: {
+        /** Brave Search mode: "web" (standard results) or "llm-context" (pre-extracted page content). Default: "web". */
+        mode?: "web" | "llm-context";
       };
     };
     fetch?: {
