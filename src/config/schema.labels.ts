@@ -226,6 +226,13 @@ export const FIELD_LABELS: Record<string, string> = {
   "tools.web.search.kimi.apiKey": "Kimi Search API Key", // pragma: allowlist secret
   "tools.web.search.kimi.baseUrl": "Kimi Search Base URL",
   "tools.web.search.kimi.model": "Kimi Search Model",
+  "tools.web.search.metaso.apiKey": "Metaso Search API Key", // pragma: allowlist secret
+  "tools.web.search.metaso.baseUrl": "Metaso Search Base URL",
+  "tools.web.search.metaso.includeSummary": "Metaso Include Summary",
+  "tools.web.search.qwen.apiKey": "Qwen Search API Key", // pragma: allowlist secret
+  "tools.web.search.qwen.baseUrl": "Qwen Search Base URL",
+  "tools.web.search.qwen.model": "Qwen Search Model",
+  "tools.web.search.qwen.enableThinking": "Qwen Enable Thinking",
   "tools.web.search.perplexity.apiKey": "Perplexity API Key", // pragma: allowlist secret
   "tools.web.search.perplexity.baseUrl": "Perplexity Base URL",
   "tools.web.search.perplexity.model": "Perplexity Model",
