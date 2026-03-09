@@ -2,8 +2,7 @@ import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-
-const CORE_PACKAGE_NAMES = new Set(["openclaw", "@ww-ai-lab/openclaw"]);
+import { CORE_PACKAGE_NAMES } from "./core-package-name.js";
 
 async function readPackageName(dir: string): Promise<string | null> {
   try {
@@ -75,9 +74,10 @@ function candidateDirsFromArgv1(argv1: string): string[] {
   const parts = normalized.split(path.sep);
   const binIndex = parts.lastIndexOf(".bin");
   if (binIndex > 0 && parts[binIndex - 1] === "node_modules") {
-    const binName = path.basename(normalized);
     const nodeModulesDir = parts.slice(0, binIndex).join(path.sep);
-    candidates.push(path.join(nodeModulesDir, binName));
+    for (const packageName of CORE_PACKAGE_NAMES) {
+      candidates.push(path.join(nodeModulesDir, ...packageName.split("/")));
+    }
   }
   return candidates;
 }
@@ -116,7 +116,11 @@ function buildCandidates(opts: { cwd?: string; argv1?: string; moduleUrl?: strin
   const candidates: string[] = [];
 
   if (opts.moduleUrl) {
-    candidates.push(path.dirname(fileURLToPath(opts.moduleUrl)));
+    try {
+      candidates.push(path.dirname(fileURLToPath(opts.moduleUrl)));
+    } catch {
+      // Ignore invalid file:// URLs and keep other package-root hints.
+    }
   }
   if (opts.argv1) {
     candidates.push(...candidateDirsFromArgv1(opts.argv1));

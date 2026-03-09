@@ -12,6 +12,16 @@ Docs: https://docs.openclaw.ai
 
 - Control UI/gateway bootstrap: fix the built-in hosted dashboard route so it loads `control-ui-config.json` from the correct path and derives the default WebSocket gateway URL from the gateway origin instead of the hosted UI mount path. This restores token-authenticated dashboard connectivity on `"/__openclaw__/control"`.
 
+## 2026.3.9-3
+
+### Changes
+
+### Breaking
+
+### Fixes
+
+- Workspace bootstrap/runtime: recognize both `@ww-ai-lab/openclaw` and legacy `openclaw` package roots when resolving bundled runtime assets. This restores packaged `docs/reference/templates/*` discovery for globally installed gateway chat sessions and prevents `Missing workspace template: AGENTS.md` failures in Control UI chats.
+
 ## 2026.3.9-2
 
 ### Changes

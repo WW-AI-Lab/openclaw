@@ -107,8 +107,8 @@ describe("resolveOpenClawPackageRoot", () => {
   it("resolves package root from .bin argv1", async () => {
     const project = fx("bin-scenario");
     const argv1 = path.join(project, "node_modules", ".bin", "openclaw");
-    const pkgRoot = path.join(project, "node_modules", "openclaw");
-    setFile(path.join(pkgRoot, "package.json"), JSON.stringify({ name: "openclaw" }));
+    const pkgRoot = path.join(project, "node_modules", "@ww-ai-lab", "openclaw");
+    setFile(path.join(pkgRoot, "package.json"), JSON.stringify({ name: "@ww-ai-lab/openclaw" }));
 
     expect(resolveOpenClawPackageRootSync({ argv1 })).toBe(pkgRoot);
   });
@@ -118,7 +118,10 @@ describe("resolveOpenClawPackageRoot", () => {
     const bin = path.join(project, "bin", "openclaw");
     const realPkg = path.join(project, "real-pkg");
     state.realpaths.set(abs(bin), abs(path.join(realPkg, "openclaw.mjs")));
-    setFile(path.join(realPkg, "package.json"), JSON.stringify({ name: "openclaw" }));
+    setFile(
+      path.join(realPkg, "package.json"),
+      JSON.stringify({ name: "@ww-ai-lab/openclaw" }),
+    );
 
     expect(resolveOpenClawPackageRootSync({ argv1: bin })).toBe(realPkg);
   });
@@ -126,19 +129,31 @@ describe("resolveOpenClawPackageRoot", () => {
   it("falls back when argv1 realpath throws", async () => {
     const project = fx("realpath-throw-scenario");
     const argv1 = path.join(project, "node_modules", ".bin", "openclaw");
-    const pkgRoot = path.join(project, "node_modules", "openclaw");
+    const pkgRoot = path.join(project, "node_modules", "@ww-ai-lab", "openclaw");
     state.realpathErrors.add(abs(argv1));
-    setFile(path.join(pkgRoot, "package.json"), JSON.stringify({ name: "openclaw" }));
+    setFile(path.join(pkgRoot, "package.json"), JSON.stringify({ name: "@ww-ai-lab/openclaw" }));
 
     expect(resolveOpenClawPackageRootSync({ argv1 })).toBe(pkgRoot);
   });
 
   it("prefers moduleUrl candidates", async () => {
     const pkgRoot = fx("moduleurl");
-    setFile(path.join(pkgRoot, "package.json"), JSON.stringify({ name: "openclaw" }));
+    setFile(path.join(pkgRoot, "package.json"), JSON.stringify({ name: "@ww-ai-lab/openclaw" }));
     const moduleUrl = pathToFileURL(path.join(pkgRoot, "dist", "index.js")).toString();
 
     expect(resolveOpenClawPackageRootSync({ moduleUrl })).toBe(pkgRoot);
+  });
+
+  it("ignores invalid moduleUrl values and falls back to cwd", async () => {
+    const pkgRoot = fx("invalid-moduleurl");
+    setFile(path.join(pkgRoot, "package.json"), JSON.stringify({ name: "@ww-ai-lab/openclaw" }));
+
+    expect(resolveOpenClawPackageRootSync({ moduleUrl: "not-a-file-url", cwd: pkgRoot })).toBe(
+      pkgRoot,
+    );
+    await expect(
+      resolveOpenClawPackageRoot({ moduleUrl: "not-a-file-url", cwd: pkgRoot }),
+    ).resolves.toBe(pkgRoot);
   });
 
   it("returns null for non-openclaw package roots", async () => {
@@ -150,9 +165,16 @@ describe("resolveOpenClawPackageRoot", () => {
 
   it("async resolver matches sync behavior", async () => {
     const pkgRoot = fx("async");
-    setFile(path.join(pkgRoot, "package.json"), JSON.stringify({ name: "openclaw" }));
+    setFile(path.join(pkgRoot, "package.json"), JSON.stringify({ name: "@ww-ai-lab/openclaw" }));
 
     await expect(resolveOpenClawPackageRoot({ cwd: pkgRoot })).resolves.toBe(pkgRoot);
+  });
+
+  it("still accepts the legacy unscoped package name", async () => {
+    const pkgRoot = fx("legacy-package-name");
+    setFile(path.join(pkgRoot, "package.json"), JSON.stringify({ name: "openclaw" }));
+
+    expect(resolveOpenClawPackageRootSync({ cwd: pkgRoot })).toBe(pkgRoot);
   });
 
   it("async resolver returns null when no package roots exist", async () => {

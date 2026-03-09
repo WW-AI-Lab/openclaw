@@ -1,6 +1,10 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import {
+  CORE_PACKAGE_NAMES,
+  PRIMARY_CORE_PACKAGE_NAME,
+} from "./core-package-name.js";
 import { pathExists } from "../utils.js";
 
 export type GlobalInstallManager = "npm" | "pnpm" | "bun";
@@ -10,8 +14,8 @@ export type CommandRunner = (
   options: { timeoutMs: number; cwd?: string; env?: NodeJS.ProcessEnv },
 ) => Promise<{ stdout: string; stderr: string; code: number | null }>;
 
-const PRIMARY_PACKAGE_NAME = "openclaw";
-const ALL_PACKAGE_NAMES = [PRIMARY_PACKAGE_NAME] as const;
+const PRIMARY_PACKAGE_NAME = PRIMARY_CORE_PACKAGE_NAME;
+const ALL_PACKAGE_NAMES = Array.from(CORE_PACKAGE_NAMES);
 const GLOBAL_RENAME_PREFIX = ".";
 const NPM_GLOBAL_INSTALL_QUIET_FLAGS = ["--no-fund", "--no-audit", "--loglevel=error"] as const;
 const NPM_GLOBAL_INSTALL_OMIT_OPTIONAL_FLAGS = [
