@@ -2,6 +2,16 @@
 
 Docs: https://docs.openclaw.ai
 
+## 2026.3.9-1
+
+### Changes
+
+### Breaking
+
+### Fixes
+
+- Control UI/gateway bootstrap: fix the built-in hosted dashboard route so it loads `control-ui-config.json` from the correct path and derives the default WebSocket gateway URL from the gateway origin instead of the hosted UI mount path. This restores token-authenticated dashboard connectivity on `"/__openclaw__/control"`.
+
 ## 2026.3.3
 
 ### Changes

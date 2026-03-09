@@ -13,7 +13,7 @@ describe("loadControlUiBootstrapConfig", () => {
         assistantName: "Ops",
         assistantAvatar: "O",
         assistantAgentId: "main",
-        serverVersion: "2026.3.2",
+        serverVersion: "2026.3.7",
       }),
     });
     vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
@@ -35,7 +35,7 @@ describe("loadControlUiBootstrapConfig", () => {
     expect(state.assistantName).toBe("Ops");
     expect(state.assistantAvatar).toBe("O");
     expect(state.assistantAgentId).toBe("main");
-    expect(state.serverVersion).toBe("2026.3.2");
+    expect(state.serverVersion).toBe("2026.3.7");
 
     vi.unstubAllGlobals();
   });
@@ -79,6 +79,28 @@ describe("loadControlUiBootstrapConfig", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       `/openclaw${CONTROL_UI_BOOTSTRAP_CONFIG_PATH}`,
+      expect.objectContaining({ method: "GET" }),
+    );
+
+    vi.unstubAllGlobals();
+  });
+
+  it("uses the absolute bootstrap path for the built-in control ui route base", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false });
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    const state = {
+      basePath: "/__openclaw__/control",
+      assistantName: "Assistant",
+      assistantAvatar: null,
+      assistantAgentId: null,
+      serverVersion: null,
+    };
+
+    await loadControlUiBootstrapConfig(state);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      CONTROL_UI_BOOTSTRAP_CONFIG_PATH,
       expect.objectContaining({ method: "GET" }),
     );
 
