@@ -299,11 +299,15 @@
     "protocol:gen": "node --import tsx scripts/protocol-gen.ts",
     "protocol:gen:swift": "node --import tsx scripts/protocol-gen-swift.ts",
 <<<<<<< HEAD
+<<<<<<< HEAD
     "release:check": "node --import tsx scripts/release-check.ts",
     "release:openclaw:npm:check": "node --import tsx scripts/openclaw-npm-release-check.ts",
 =======
     "release:check": "pnpm lint:version-date && node --import tsx scripts/release-check.ts",
 >>>>>>> 817dec814f (release: harden package root + enforce same-day versioning)
+=======
+    "release:check": "pnpm lint:version-date && node --import tsx scripts/release-check.ts",
+>>>>>>> 292b096af8 (release: harden package root + enforce same-day versioning)
     "start": "node scripts/run-node.mjs",
     "test": "node scripts/test-parallel.mjs",
     "test:all": "pnpm lint && pnpm build && pnpm test && pnpm test:e2e && pnpm test:live && pnpm test:docker:all",
