@@ -320,6 +320,18 @@
   - per-plugin: `npm view @openclaw/<name> version --userconfig "$(mktemp)"` should be `2026.2.17`
   - core guard: `npm view openclaw version --userconfig "$(mktemp)"` should stay at previous version unless explicitly requested.
 
+## @ww-ai-lab/openclaw Package Rename Guardrails
+
+This fork uses `@ww-ai-lab/openclaw` as the npm package name (instead of upstream `openclaw`). After merging upstream changes or modifying dependencies, always verify:
+
+- **Workspace references**: `packages/clawdbot/package.json` and `packages/moltbot/package.json` must reference `"@ww-ai-lab/openclaw": "workspace:*"` (not `"openclaw": "workspace:*"`). If upstream resets these, fix before running `pnpm install`.
+- **pnpm install**: always run `pnpm install --no-frozen-lockfile` after merging upstream, because the lockfile will be stale. Verify it completes without workspace resolution errors.
+- **Dependency versions**: after `pnpm install`, verify that runtime dependencies with subpath exports (e.g. `@mariozechner/pi-ai/oauth`) resolve correctly. Run `openclaw gateway status` and `openclaw --version` as a smoke test before publishing.
+- **Extensions**: extensions under `extensions/` use `"openclaw"` in their imports, which is resolved at runtime via jiti alias. Do NOT rename these to `@ww-ai-lab/openclaw`.
+- **Build**: `pnpm build` may fail on upstream TypeScript errors. Use `node scripts/tsdown-build.mjs` for esbuild bundling (always works), then run remaining build steps manually. Use `npm publish --ignore-scripts` to skip the prepack hook when upstream tsc errors block the full build pipeline.
+- **Publishing**: when the version contains a `-N` suffix (e.g. `2026.3.10-1`), npm treats it as a prerelease; use `--tag latest` to publish it as the latest stable version.
+- **Release branch**: always publish from `main` branch. Merge `develop` into `main` first, verify locally, then push and create the GitHub release.
+
 ## Changelog Release Notes
 
 - When cutting a mac release with beta GitHub prerelease:
