@@ -588,19 +588,14 @@ function resolveSearchProvider(search?: WebSearchConfig): (typeof SEARCH_PROVIDE
   if (raw === "kimi") {
     return "kimi";
   }
-<<<<<<< HEAD
-  if (raw === "perplexity") {
-    return "perplexity";
-=======
   if (raw === "metaso") {
     return "metaso";
   }
   if (raw === "qwen") {
     return "qwen";
   }
-  if (raw === "brave") {
-    return "brave";
->>>>>>> 7b7aec9a38 (Tools: restore qwen and metaso web_search providers)
+  if (raw === "perplexity") {
+    return "perplexity";
   }
 
   // Auto-detect provider from available API keys (alphabetical order)
@@ -636,9 +631,6 @@ function resolveSearchProvider(search?: WebSearchConfig): (typeof SEARCH_PROVIDE
       );
       return "kimi";
     }
-<<<<<<< HEAD
-    // Perplexity
-=======
     // 3b. Metaso
     const metasoConfig = resolveMetasoConfig(search);
     if (resolveMetasoApiKey(metasoConfig)) {
@@ -656,7 +648,6 @@ function resolveSearchProvider(search?: WebSearchConfig): (typeof SEARCH_PROVIDE
       return "qwen";
     }
     // 4. Perplexity
->>>>>>> 7b7aec9a38 (Tools: restore qwen and metaso web_search providers)
     const perplexityConfig = resolvePerplexityConfig(search);
     const { apiKey: perplexityKey } = resolvePerplexityApiKey(perplexityConfig);
     if (perplexityKey) {
