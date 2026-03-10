@@ -441,7 +441,6 @@ export type ToolsConfig = {
     search?: {
       /** Enable web search tool (default: true when API key is present). */
       enabled?: boolean;
-<<<<<<< HEAD
       /** Search provider ("brave", "perplexity", "grok", "gemini", "kimi", "metaso", or "qwen"). */
       provider?: "brave" | "perplexity" | "grok" | "gemini" | "kimi" | "metaso" | "qwen";
       /** Brave Search API key (optional; defaults to BRAVE_API_KEY env var). */
@@ -501,11 +500,6 @@ export type ToolsConfig = {
         model?: string;
         /** Enable thinking mode (default: false). */
         enableThinking?: boolean;
-      };
-      /** Brave-specific configuration (used when provider="brave"). */
-      brave?: {
-        /** Brave Search mode: "web" (standard results) or "llm-context" (pre-extracted page content). Default: "web". */
-        mode?: "web" | "llm-context";
       };
       /** Perplexity-specific configuration (used when provider="perplexity"). */
       perplexity?: {
