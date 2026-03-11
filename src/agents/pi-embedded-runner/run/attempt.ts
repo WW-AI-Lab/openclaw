@@ -2064,10 +2064,8 @@ export async function runEmbeddedAttempt(
       if (params.disableTools) {
         const innerNoTools = activeSession.agent.streamFn;
         activeSession.agent.streamFn = (model, context, options) => {
-          const ctx = context as Record<string, unknown>;
-          if (Array.isArray(ctx.tools) && ctx.tools.length === 0) {
-            const { tools: _stripped, ...rest } = ctx;
-            return innerNoTools(model, rest, options);
+          if (Array.isArray(context.tools) && context.tools.length === 0) {
+            return innerNoTools(model, { ...context, tools: undefined }, options);
           }
           return innerNoTools(model, context, options);
         };
