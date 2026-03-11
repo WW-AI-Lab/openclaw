@@ -3,6 +3,11 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { resolveStateDir } from "../../config/paths.js";
+import {
+  CORE_PACKAGE_NAMES as INFRA_CORE_PACKAGE_NAMES,
+  DEFAULT_UPDATE_TAG_PACKAGE_NAMES,
+  PRIMARY_CORE_PACKAGE_NAME,
+} from "../../infra/core-package-name.js";
 import { resolveOpenClawPackageRoot } from "../../infra/openclaw-root.js";
 import { readPackageName, readPackageVersion } from "../../infra/package-json.js";
 import { normalizePackageTagInput } from "../../infra/package-tag.js";
@@ -55,11 +60,11 @@ export function parseTimeoutMsOrExit(timeout?: string): number | undefined | nul
 const OPENCLAW_REPO_URL = "https://github.com/openclaw/openclaw.git";
 const MAX_LOG_CHARS = 8000;
 
-export const DEFAULT_PACKAGE_NAME = "openclaw";
-const CORE_PACKAGE_NAMES = new Set([DEFAULT_PACKAGE_NAME]);
+export const DEFAULT_PACKAGE_NAME = PRIMARY_CORE_PACKAGE_NAME;
+const CORE_PACKAGE_NAMES = INFRA_CORE_PACKAGE_NAMES;
 
 export function normalizeTag(value?: string | null): string | null {
-  return normalizePackageTagInput(value, ["openclaw", DEFAULT_PACKAGE_NAME]);
+  return normalizePackageTagInput(value, [...DEFAULT_UPDATE_TAG_PACKAGE_NAMES]);
 }
 
 export function normalizeVersionTag(tag: string): string | null {
