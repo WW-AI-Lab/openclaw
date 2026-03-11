@@ -3,6 +3,7 @@ import { formatCliCommand } from "../../cli/command-format.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import { normalizeResolvedSecretInputString } from "../../config/types.secrets.js";
 import { logVerbose } from "../../globals.js";
+import type { RuntimeWebSearchMetadata } from "../../secrets/runtime-web-tools.js";
 import { wrapWebContent } from "../../security/external-content.js";
 import { normalizeSecretInput } from "../../utils/normalize-secret-input.js";
 import type { AnyAgentTool } from "./common.js";
@@ -204,6 +205,33 @@ function createWebSearchSchema(params: {
     ),
   } as const;
 
+  const perplexityStructuredFilterSchema = {
+    country: Type.Optional(
+      Type.String({
+        description:
+          "Native Perplexity Search API only. 2-letter country code for region-specific results (e.g., 'DE', 'US', 'ALL'). Default: 'US'.",
+      }),
+    ),
+    language: Type.Optional(
+      Type.String({
+        description:
+          "Native Perplexity Search API only. ISO 639-1 language code for results (e.g., 'en', 'de', 'fr').",
+      }),
+    ),
+    date_after: Type.Optional(
+      Type.String({
+        description:
+          "Native Perplexity Search API only. Only results published after this date (YYYY-MM-DD).",
+      }),
+    ),
+    date_before: Type.Optional(
+      Type.String({
+        description:
+          "Native Perplexity Search API only. Only results published before this date (YYYY-MM-DD).",
+      }),
+    ),
+  } as const;
+
   if (params.provider === "brave") {
     return Type.Object({
       ...querySchema,
@@ -232,7 +260,8 @@ function createWebSearchSchema(params: {
     }
     return Type.Object({
       ...querySchema,
-      ...filterSchema,
+      freshness: filterSchema.freshness,
+      ...perplexityStructuredFilterSchema,
       domain_filter: Type.Optional(
         Type.Array(Type.String(), {
           description:
@@ -254,6 +283,13 @@ function createWebSearchSchema(params: {
           minimum: 1,
         }),
       ),
+    });
+  }
+
+  // metaso and qwen don't support country/language/freshness/date filtering
+  if (params.provider === "metaso" || params.provider === "qwen") {
+    return Type.Object({
+      ...querySchema,
     });
   }
 
@@ -283,8 +319,7 @@ type BraveSearchResponse = {
   };
 };
 
-type BraveLlmContextSnippet = { text: string };
-type BraveLlmContextResult = { url: string; title: string; snippets: BraveLlmContextSnippet[] };
+type BraveLlmContextResult = { url: string; title: string; snippets: string[] };
 type BraveLlmContextResponse = {
   grounding: { generic?: BraveLlmContextResult[] };
   sources?: { url?: string; hostname?: string; date?: string }[];
@@ -392,6 +427,16 @@ type PerplexitySearchResponse = {
   choices?: Array<{
     message?: {
       content?: string;
+      annotations?: Array<{
+        type?: string;
+        url?: string;
+        url_citation?: {
+          url?: string;
+          title?: string;
+          start_index?: number;
+          end_index?: number;
+        };
+      }>;
     };
   }>;
   citations?: string[];
@@ -409,6 +454,38 @@ type PerplexitySearchApiResponse = {
   results?: PerplexitySearchApiResult[];
   id?: string;
 };
+
+function extractPerplexityCitations(data: PerplexitySearchResponse): string[] {
+  const normalizeUrl = (value: unknown): string | undefined => {
+    if (typeof value !== "string") {
+      return undefined;
+    }
+    const trimmed = value.trim();
+    return trimmed ? trimmed : undefined;
+  };
+
+  const topLevel = (data.citations ?? [])
+    .map(normalizeUrl)
+    .filter((url): url is string => Boolean(url));
+  if (topLevel.length > 0) {
+    return [...new Set(topLevel)];
+  }
+
+  const citations: string[] = [];
+  for (const choice of data.choices ?? []) {
+    for (const annotation of choice.message?.annotations ?? []) {
+      if (annotation.type !== "url_citation") {
+        continue;
+      }
+      const url = normalizeUrl(annotation.url_citation?.url ?? annotation.url);
+      if (url) {
+        citations.push(url);
+      }
+    }
+  }
+
+  return [...new Set(citations)];
+}
 
 function extractGrokContent(data: GrokSearchResponse): {
   text: string | undefined;
@@ -631,7 +708,7 @@ function resolveSearchProvider(search?: WebSearchConfig): (typeof SEARCH_PROVIDE
       );
       return "kimi";
     }
-    // 3b. Metaso
+    // Metaso
     const metasoConfig = resolveMetasoConfig(search);
     if (resolveMetasoApiKey(metasoConfig)) {
       logVerbose(
@@ -639,7 +716,7 @@ function resolveSearchProvider(search?: WebSearchConfig): (typeof SEARCH_PROVIDE
       );
       return "metaso";
     }
-    // 3c. Qwen
+    // Qwen
     const qwenConfig = resolveQwenConfig(search);
     if (resolveQwenApiKey(qwenConfig)) {
       logVerbose(
@@ -647,7 +724,7 @@ function resolveSearchProvider(search?: WebSearchConfig): (typeof SEARCH_PROVIDE
       );
       return "qwen";
     }
-    // 4. Perplexity
+    // Perplexity
     const perplexityConfig = resolvePerplexityConfig(search);
     const { apiKey: perplexityKey } = resolvePerplexityApiKey(perplexityConfig);
     if (perplexityKey) {
@@ -803,6 +880,16 @@ function resolvePerplexityTransport(perplexity?: PerplexityConfig): {
     transport:
       hasLegacyOverride || !isDirectPerplexityBaseUrl(baseUrl) ? "chat_completions" : "search_api",
   };
+}
+
+function resolvePerplexitySchemaTransportHint(
+  perplexity?: PerplexityConfig,
+): PerplexityTransport | undefined {
+  const hasLegacyOverride = Boolean(
+    (perplexity?.baseUrl && perplexity.baseUrl.trim()) ||
+    (perplexity?.model && perplexity.model.trim()),
+  );
+  return hasLegacyOverride ? "chat_completions" : undefined;
 }
 
 function resolveGrokConfig(search?: WebSearchConfig): GrokConfig {
@@ -1344,7 +1431,8 @@ async function runPerplexitySearch(params: {
 
       const data = (await res.json()) as PerplexitySearchResponse;
       const content = data.choices?.[0]?.message?.content ?? "No response";
-      const citations = data.citations ?? [];
+      // Prefer top-level citations; fall back to OpenRouter-style message annotations.
+      const citations = extractPerplexityCitations(data);
 
       return { content, citations };
     },
@@ -1559,6 +1647,18 @@ async function runKimiSearch(params: {
   };
 }
 
+function mapBraveLlmContextResults(
+  data: BraveLlmContextResponse,
+): { url: string; title: string; snippets: string[]; siteName?: string }[] {
+  const genericResults = Array.isArray(data.grounding?.generic) ? data.grounding.generic : [];
+  return genericResults.map((entry) => ({
+    url: entry.url ?? "",
+    title: entry.title ?? "",
+    snippets: (entry.snippets ?? []).filter((s) => typeof s === "string" && s.length > 0),
+    siteName: resolveSiteName(entry.url) || undefined,
+  }));
+}
+
 type MetasoSearchResponse = {
   data?: {
     items?: Array<{
@@ -1750,13 +1850,7 @@ async function runBraveLlmContextSearch(params: {
       }
 
       const data = (await res.json()) as BraveLlmContextResponse;
-      const genericResults = Array.isArray(data.grounding?.generic) ? data.grounding.generic : [];
-      const mapped = genericResults.map((entry) => ({
-        url: entry.url ?? "",
-        title: entry.title ?? "",
-        snippets: (entry.snippets ?? []).map((s) => s.text ?? "").filter(Boolean),
-        siteName: resolveSiteName(entry.url) || undefined,
-      }));
+      const mapped = mapBraveLlmContextResults(data);
 
       return { results: mapped, sources: data.sources };
     },
@@ -2141,15 +2235,21 @@ async function runWebSearch(params: {
 export function createWebSearchTool(options?: {
   config?: OpenClawConfig;
   sandboxed?: boolean;
+  runtimeWebSearch?: RuntimeWebSearchMetadata;
 }): AnyAgentTool | null {
   const search = resolveSearchConfig(options?.config);
   if (!resolveSearchEnabled({ search, sandboxed: options?.sandboxed })) {
     return null;
   }
 
-  const provider = resolveSearchProvider(search);
+  const provider =
+    options?.runtimeWebSearch?.selectedProvider ??
+    options?.runtimeWebSearch?.providerConfigured ??
+    resolveSearchProvider(search);
   const perplexityConfig = resolvePerplexityConfig(search);
-  const perplexityTransport = resolvePerplexityTransport(perplexityConfig);
+  const perplexitySchemaTransportHint =
+    options?.runtimeWebSearch?.perplexityTransport ??
+    resolvePerplexitySchemaTransportHint(perplexityConfig);
   const grokConfig = resolveGrokConfig(search);
   const geminiConfig = resolveGeminiConfig(search);
   const kimiConfig = resolveKimiConfig(search);
@@ -2160,9 +2260,9 @@ export function createWebSearchTool(options?: {
 
   const description =
     provider === "perplexity"
-      ? perplexityTransport.transport === "chat_completions"
+      ? perplexitySchemaTransportHint === "chat_completions"
         ? "Search the web using Perplexity Sonar via Perplexity/OpenRouter chat completions. Returns AI-synthesized answers with citations from web-grounded search."
-        : "Search the web using the Perplexity Search API. Returns structured results (title, URL, snippet) for fast research. Supports domain, region, language, and freshness filtering."
+        : "Search the web using Perplexity. Runtime routing decides between native Search API and Sonar chat-completions compatibility. Structured filters are available on the native Search API path."
       : provider === "grok"
         ? "Search the web using xAI Grok. Returns AI-synthesized answers with citations from real-time web search."
         : provider === "kimi"
@@ -2183,10 +2283,13 @@ export function createWebSearchTool(options?: {
     description,
     parameters: createWebSearchSchema({
       provider,
-      perplexityTransport: provider === "perplexity" ? perplexityTransport.transport : undefined,
+      perplexityTransport: provider === "perplexity" ? perplexitySchemaTransportHint : undefined,
     }),
     execute: async (_toolCallId, args) => {
-      const perplexityRuntime = provider === "perplexity" ? perplexityTransport : undefined;
+      // Resolve Perplexity auth/transport lazily at execution time so unrelated providers
+      // do not touch Perplexity-only credential surfaces during tool construction.
+      const perplexityRuntime =
+        provider === "perplexity" ? resolvePerplexityTransport(perplexityConfig) : undefined;
       const apiKey =
         provider === "perplexity"
           ? perplexityRuntime?.apiKey
@@ -2481,4 +2584,5 @@ export const __testing = {
   resolveQwenEnableThinking,
   resolveRedirectUrl: resolveCitationRedirectUrl,
   resolveBraveMode,
+  mapBraveLlmContextResults,
 } as const;
