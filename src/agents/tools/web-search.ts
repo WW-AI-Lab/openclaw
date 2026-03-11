@@ -286,6 +286,13 @@ function createWebSearchSchema(params: {
     });
   }
 
+  // metaso and qwen don't support country/language/freshness/date filtering
+  if (params.provider === "metaso" || params.provider === "qwen") {
+    return Type.Object({
+      ...querySchema,
+    });
+  }
+
   // grok, gemini, kimi, etc.
   return Type.Object({
     ...querySchema,
