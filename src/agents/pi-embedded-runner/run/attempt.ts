@@ -2059,6 +2059,20 @@ export async function runEmbeddedAttempt(
         );
       }
 
+      // Some providers (e.g. DashScope/bailian) reject empty tools arrays with 400.
+      // When disableTools is set, strip the empty array so the provider never sees it.
+      if (params.disableTools) {
+        const innerNoTools = activeSession.agent.streamFn;
+        activeSession.agent.streamFn = (model, context, options) => {
+          const ctx = context as Record<string, unknown>;
+          if (Array.isArray(ctx.tools) && ctx.tools.length === 0) {
+            const { tools: _stripped, ...rest } = ctx;
+            return innerNoTools(model, rest, options);
+          }
+          return innerNoTools(model, context, options);
+        };
+      }
+
       try {
         const prior = await sanitizeSessionHistory({
           messages: activeSession.messages,
