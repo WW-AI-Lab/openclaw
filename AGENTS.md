@@ -347,3 +347,56 @@ This fork uses `@ww-ai-lab/openclaw` as the npm package name (instead of upstrea
   - `node --import tsx scripts/release-check.ts`
   - `pnpm release:check`
   - `pnpm test:install:smoke` or `OPENCLAW_INSTALL_SMOKE_SKIP_NONROOT=1 pnpm test:install:smoke` for non-root smoke path.
+
+---
+
+## 合并上游源码保护规则（@ww-ai-lab/openclaw Fork）
+
+> 本节规则仅适用于从 `openclaw/openclaw` 上游仓库合并代码到本 Fork 时。
+> 放在此文件而非根目录 `AGENTS.md` 中，是因为根目录 `AGENTS.md` 会被上游覆盖。
+
+### 包名与工作区引用
+
+- 本 Fork 的 npm 包名为 `@ww-ai-lab/openclaw`（上游为 `openclaw`）。
+- 合并上游后，`packages/clawdbot/package.json` 和 `packages/moltbot/package.json` 中的依赖引用**必须**改回 `"@ww-ai-lab/openclaw": "workspace:*"`（上游会将其重置为 `"openclaw": "workspace:*"`）。
+- `extensions/` 下的 `"openclaw"` 导入**不要**改名，运行时通过 jiti alias 解析。
+
+### 自定义 web_search 供应商保护
+
+本 Fork 新增了 `qwen` 和 `metaso` 两个 web_search 供应商，代码分布在以下文件：
+
+| 文件                                            | 需要保留的内容                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/agents/tools/web-search.ts`                | `SEARCH_PROVIDERS` 数组含 `"metaso"` / `"qwen"`；常量 `DEFAULT_METASO_*` / `DEFAULT_QWEN_*`；类型 `MetasoConfig` / `QwenConfig`；函数 `resolveMetasoConfig` / `resolveMetasoApiKey` / `resolveMetasoBaseUrl` / `resolveMetasoIncludeSummary` / `resolveQwenConfig` / `resolveQwenApiKey` / `resolveQwenBaseUrl` / `resolveQwenModel` / `resolveQwenEnableThinking`；函数 `runMetasoSearch` / `runQwenSearch`；`missingSearchKeyPayload` 中的 metaso/qwen 分支；`resolveSearchProvider` 中的 metaso/qwen 匹配和自动检测；`createWebSearchTool` 中的 description 分支、API key 解析分支、参数传递；`__testing` 导出中的 7 个 metaso/qwen resolve 函数 |
+| `src/config/types.tools.ts`                     | `provider` 类型联合含 `"metaso"` / `"qwen"`；`metaso?: { apiKey, baseUrl, includeSummary }` 和 `qwen?: { apiKey, baseUrl, model, enableThinking }` 配置块                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `src/config/zod-schema.agent-runtime.ts`        | `ToolsWebSearchSchema` 中 `provider` 含 `z.literal("metaso")` / `z.literal("qwen")`；`metaso` 和 `qwen` 子对象 schema                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `src/config/schema.help.ts`                     | metaso/qwen 相关帮助文本                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `src/config/schema.labels.ts`                   | metaso/qwen 标签                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `src/config/config.web-search-provider.test.ts` | metaso/qwen 测试用例                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+
+**合并后必检项**：运行 `grep -c 'metaso\|qwen' src/agents/tools/web-search.ts`，结果应 ≥ 70。若为 0，说明上游覆盖了自定义代码，需要从最近的包含 qwen/metaso 的 git 提交中恢复。
+
+### 配置文件保护机制
+
+- 用户配置 `~/.openclaw/openclaw.json` 使用 Zod `.strict()` 验证。若 gateway 运行的代码**缺少** qwen/metaso schema 定义，任何 `config set` 操作都会**静默剥离** qwen/metaso 配置。
+- 因此必须**先完成代码合并和构建安装，再进行任何配置操作**。
+- 合并后验证命令：`openclaw config get tools.web.search`，确认 `provider`、`qwen`、`metaso` 字段完整。
+- 配置备份位置：`~/.openclaw/openclaw.json.bak*`，包含 qwen 配置的历史备份为 `openclaw.json-bak.022501` 和 `openclaw.json.bak-20260225-pre-agents`。
+
+### 构建与发布
+
+- `pnpm build` 可能因上游 TypeScript 错误失败。使用 `node scripts/tsdown-build.mjs` 进行 esbuild 构建。
+- `npm publish` 使用 `--ignore-scripts` 跳过 prepack hook；版本含 `-N` 后缀时加 `--tag latest`。
+- 发布前必须本地安装验证：`npm install -g .` → `openclaw gateway restart` → `openclaw gateway status`（确认 RPC probe ok）→ `openclaw config get tools.web.search`（确认 qwen/metaso 完整）。
+- 完整流程参见 skill：`openclaw-upstream-merge`。
+
+### 版本号规范
+
+- 格式：`YYYY.M.D`（与上游一致），如当日已有相同版本则追加 `-N` 后缀（如 `2026.3.10-1`）。
+- 检查 npmjs 已发布版本：`npm view @ww-ai-lab/openclaw version --userconfig "$(mktemp)"`。
+
+### 依赖版本验证
+
+- 合并后运行 `pnpm install --no-frozen-lockfile`（lockfile 必然过时）。
+- 关键依赖：`@mariozechner/pi-ai` 必须为 `package.json` 中声明的版本（当前 `0.57.1`），低版本缺少 `./oauth` 子路径导出。
+- 验证：`node -e "require.resolve('@mariozechner/pi-ai/oauth')"`。
