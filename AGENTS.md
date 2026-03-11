@@ -249,30 +249,13 @@
 - Release guardrails: do not change version numbers without operator’s explicit consent; always ask permission before running any npm publish/release step.
 - Beta release guardrail: when using a beta Git tag (for example `vYYYY.M.D-beta.N`), publish npm with a matching beta version suffix (for example `YYYY.M.D-beta.N`) rather than a plain version on `--tag beta`; otherwise the plain version name gets consumed/blocked.
 
-## NPM + 1Password (publish/verify)
-
-- Use the 1password skill; all `op` commands must run inside a fresh tmux session.
-- Correct 1Password path for npm release auth: `op://Private/Npmjs` (use that item; OTP stays `op://Private/Npmjs/one-time password?attribute=otp`).
-- Sign in: `eval "$(op signin --account my.1password.com)"` (app unlocked + integration on).
-- OTP: `op read 'op://Private/Npmjs/one-time password?attribute=otp'`.
-- Publish: `npm publish --access public --otp="<otp>"` (run from the package dir).
-- Verify without local npmrc side effects: `npm view <pkg> version --userconfig "$(mktemp)"`.
-- Kill the tmux session after publish.
-
 ## Plugin Release Fast Path (no core `openclaw` publish)
 
 - Release only already-on-npm plugins. Source list is in `docs/reference/RELEASING.md` under "Current npm plugin list".
-- Run all CLI `op` calls and `npm publish` inside tmux to avoid hangs/interruption:
-  - `tmux new -d -s release-plugins-$(date +%Y%m%d-%H%M%S)`
-  - `eval "$(op signin --account my.1password.com)"`
-- 1Password helpers:
-  - password used by `npm login`:
-    `op item get Npmjs --format=json | jq -r '.fields[] | select(.id=="password").value'`
-  - OTP:
-    `op read 'op://Private/Npmjs/one-time password?attribute=otp'`
+- Local npm auth is pre-configured (no 1Password needed); verify with `npm whoami` before publishing.
 - Fast publish loop (local helper script in `/tmp` is fine; keep repo clean):
   - compare local plugin `version` to `npm view <name> version`
-  - only run `npm publish --access public --otp="<otp>"` when versions differ
+  - only run `npm publish --access public` when versions differ
   - skip if package is missing on npm or version already matches.
 - Keep `openclaw` untouched: never run publish from repo root unless explicitly requested.
 - Post-check for each release:
@@ -288,7 +271,10 @@ This fork uses `@ww-ai-lab/openclaw` as the npm package name (instead of upstrea
 - **Dependency versions**: after `pnpm install`, verify that runtime dependencies with subpath exports (e.g. `@mariozechner/pi-ai/oauth`) resolve correctly. Run `openclaw gateway status` and `openclaw --version` as a smoke test before publishing.
 - **Extensions**: extensions under `extensions/` use `"openclaw"` in their imports, which is resolved at runtime via jiti alias. Do NOT rename these to `@ww-ai-lab/openclaw`.
 - **Build**: `pnpm build` may fail on upstream TypeScript errors. Use `node scripts/tsdown-build.mjs` for esbuild bundling (always works), then run remaining build steps manually. Use `npm publish --ignore-scripts` to skip the prepack hook when upstream tsc errors block the full build pipeline.
-- **Publishing**: when the version contains a `-N` suffix (e.g. `2026.3.10-1`), npm treats it as a prerelease; use `--tag latest` to publish it as the latest stable version.
+- **Build UI**: `pnpm build` does NOT build the Control UI. Always run `pnpm ui:build` after `pnpm build`. Verify: `ls dist/control-ui/index.html`. Without this, the published package will lack the Web management interface.
+- **Clean build**: always `rm -rf dist/` before building. Stale dist chunks can cause schema validation to load incomplete modules (e.g. doctor reports "Unrecognized keys: metaso, qwen" even though source is correct).
+- **Post-install cleanup**: `npm install -g .` creates a `package-lock.json` in the workspace root; remove it (`rm -f package-lock.json`) to avoid conflicts with pnpm.
+- **Publishing**: when the version contains a `-N` suffix (e.g. `2026.3.10-1`), npm treats it as a prerelease; use `--tag latest` to publish it as the latest stable version. Local npm auth is pre-configured; verify with `npm whoami`.
 - **Release branch**: always publish from `main` branch. Merge `develop` into `main` first, verify locally, then push and create the GitHub release.
 
 ## Changelog Release Notes
@@ -339,15 +325,20 @@ This fork uses `@ww-ai-lab/openclaw` as the npm package name (instead of upstrea
 
 - 用户配置 `~/.openclaw/openclaw.json` 使用 Zod `.strict()` 验证。若 gateway 运行的代码**缺少** qwen/metaso schema 定义，任何 `config set` 操作都会**静默剥离** qwen/metaso 配置。
 - 因此必须**先完成代码合并和构建安装，再进行任何配置操作**。
+- **构建验证**：即使源码中 schema 正确，旧 dist 残留 chunk 也可能导致验证走错误路径。构建前必须 `rm -rf dist/`，构建后运行 `openclaw doctor` 确认不再报 "Invalid config" 或 "Unrecognized keys" 错误。
 - 合并后验证命令：`openclaw config get tools.web.search`，确认 `provider`、`qwen`、`metaso` 字段完整。
 - 配置备份位置：`~/.openclaw/openclaw.json.bak*`，包含 qwen 配置的历史备份为 `openclaw.json-bak.022501` 和 `openclaw.json.bak-20260225-pre-agents`。
 
 ### 构建与发布
 
+- **构建前必须 `rm -rf dist/`**：旧 dist 残留的 chunk 可能导致 schema 验证走错误的代码路径（已知 bug：`openclaw doctor` 报 "Unrecognized keys: metaso, qwen" 但源码正确）。
 - `pnpm build` 可能因上游 TypeScript 错误失败。使用 `node scripts/tsdown-build.mjs` 进行 esbuild 构建。
+- **构建必须包含 UI**：`pnpm build` **不包含** `ui:build`（只有 `prepack` 才串联两者）。手动构建流程必须是 `pnpm build && pnpm ui:build`。
+- **发布前 UI 门禁**：`ls dist/control-ui/index.html` 必须存在。缺失则 gateway 安装后没有 Web 管理界面。
 - `npm publish` 使用 `--ignore-scripts` 跳过 prepack hook；版本含 `-N` 后缀时加 `--tag latest`。
-- 发布前必须本地安装验证：`npm install -g .` → `openclaw gateway restart` → `openclaw gateway status`（确认 RPC probe ok）→ `openclaw config get tools.web.search`（确认 qwen/metaso 完整）。
-- 完整流程参见 skill：`openclaw-upstream-merge`。
+- 本地 npm 已认证（`npm whoami` 验证），无需 1Password。
+- 发布前必须本地安装验证：`npm install -g .` → `rm -f package-lock.json` → `openclaw gateway restart` → `openclaw gateway status`（确认 RPC probe ok）→ `openclaw config get tools.web.search`（确认 qwen/metaso 完整）→ `openclaw doctor`（确认无 "Invalid config" 输出）→ `curl http://127.0.0.1:18789/`（确认 UI 返回 200）。
+- 完整流程参见 skill：`openclaw-upstream-merge`（`.agents/skills/openclaw-upstream-merge/SKILL.md`）。
 
 ### 版本号规范
 
