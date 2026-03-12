@@ -671,9 +671,6 @@ function resolveSearchProvider(search?: WebSearchConfig): (typeof SEARCH_PROVIDE
   if (raw === "qwen") {
     return "qwen";
   }
-  if (raw === "brave") {
-    return "brave";
-  }
   if (raw === "perplexity") {
     return "perplexity";
   }
