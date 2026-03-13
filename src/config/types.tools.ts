@@ -457,8 +457,16 @@ export type ToolsConfig = {
     search?: {
       /** Enable web search tool (default: true when API key is present). */
       enabled?: boolean;
-      /** Search provider ("brave", "perplexity", "grok", "gemini", "kimi", "metaso", or "qwen"). */
-      provider?: "brave" | "perplexity" | "grok" | "gemini" | "kimi" | "metaso" | "qwen";
+      /** Search provider ("brave", "perplexity", "grok", "gemini", "kimi", "metaso", "openai-search", or "qwen" (deprecated alias for openai-search)). */
+      provider?:
+        | "brave"
+        | "perplexity"
+        | "grok"
+        | "gemini"
+        | "kimi"
+        | "metaso"
+        | "openai-search"
+        | "qwen";
       /** Brave Search API key (optional; defaults to BRAVE_API_KEY env var). */
       apiKey?: SecretInput;
       /** Default search results count (1-10). */
@@ -506,7 +514,27 @@ export type ToolsConfig = {
         /** Include summary in results (default: true). */
         includeSummary?: boolean;
       };
-      /** Qwen-specific configuration (used when provider="qwen"). */
+      /**
+       * Generic OpenAI-compatible search provider configuration.
+       * Works with any API that supports /chat/completions with a search trigger parameter.
+       */
+      openaiSearch?: {
+        /** API key (fallback: DASHSCOPE_API_KEY or OPENAI_SEARCH_API_KEY env var). */
+        apiKey?: SecretInput;
+        /** Base URL (default: "https://dashscope.aliyuncs.com/compatible-mode/v1"). */
+        baseUrl?: string;
+        /** Model name (default: "qwen-plus"). */
+        model?: string;
+        /** Display name for the tool (default: "openai-search"). */
+        toolName?: string;
+        /** Whether to send the search trigger parameter (default: true). */
+        enableSearch?: boolean;
+        /** Enable thinking mode (default: false). */
+        enableThinking?: boolean;
+        /** Search trigger parameter name in the request body (default: "enable_search"). */
+        searchParam?: string;
+      };
+      /** @deprecated Use openaiSearch instead. Qwen configuration is read as a fallback for openaiSearch. */
       qwen?: {
         /** DashScope API key (defaults to DASHSCOPE_API_KEY env var). */
         apiKey?: SecretInput;

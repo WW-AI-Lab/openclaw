@@ -10,7 +10,15 @@ import {
   type SecretDefaults,
 } from "./runtime-shared.js";
 
-const WEB_SEARCH_PROVIDERS = ["brave", "gemini", "grok", "kimi", "perplexity"] as const;
+const WEB_SEARCH_PROVIDERS = [
+  "brave",
+  "gemini",
+  "grok",
+  "kimi",
+  "metaso",
+  "openai-search",
+  "perplexity",
+] as const;
 const PERPLEXITY_DIRECT_BASE_URL = "https://api.perplexity.ai";
 const DEFAULT_PERPLEXITY_BASE_URL = "https://openrouter.ai/api/v1";
 const PERPLEXITY_KEY_PREFIXES = ["pplx-"];
@@ -87,9 +95,15 @@ function normalizeProvider(value: unknown): WebSearchProvider | undefined {
     normalized === "gemini" ||
     normalized === "grok" ||
     normalized === "kimi" ||
+    normalized === "metaso" ||
+    normalized === "openai-search" ||
     normalized === "perplexity"
   ) {
     return normalized;
+  }
+  // "qwen" is a deprecated alias for "openai-search"
+  if (normalized === "qwen") {
+    return "openai-search";
   }
   return undefined;
 }
@@ -301,6 +315,14 @@ function setResolvedWebSearchApiKey(params: {
     search.apiKey = params.value;
     return;
   }
+  if (params.provider === "openai-search") {
+    // Write to openaiSearch; also write to qwen for backward compat with web-search.ts resolve
+    const openaiSearchConfig = ensureObject(search, "openaiSearch");
+    openaiSearchConfig.apiKey = params.value;
+    const qwenConfig = ensureObject(search, "qwen");
+    qwenConfig.apiKey = params.value;
+    return;
+  }
   const providerConfig = ensureObject(search, params.provider);
   providerConfig.apiKey = params.value;
 }
@@ -329,6 +351,12 @@ function envVarsForProvider(provider: WebSearchProvider): string[] {
   if (provider === "kimi") {
     return ["KIMI_API_KEY", "MOONSHOT_API_KEY"];
   }
+  if (provider === "metaso") {
+    return ["METASO_API_KEY"];
+  }
+  if (provider === "openai-search") {
+    return ["DASHSCOPE_API_KEY", "OPENAI_SEARCH_API_KEY"];
+  }
   return ["PERPLEXITY_API_KEY", "OPENROUTER_API_KEY"];
 }
 
@@ -338,6 +366,18 @@ function resolveProviderKeyValue(
 ): unknown {
   if (provider === "brave") {
     return search.apiKey;
+  }
+  if (provider === "openai-search") {
+    // Prefer openaiSearch, fall back to deprecated qwen config
+    const openaiSearch = search.openaiSearch;
+    if (isRecord(openaiSearch) && openaiSearch.apiKey !== undefined) {
+      return openaiSearch.apiKey;
+    }
+    const qwen = search.qwen;
+    if (isRecord(qwen)) {
+      return qwen.apiKey;
+    }
+    return undefined;
   }
   const scoped = search[provider];
   if (!isRecord(scoped)) {

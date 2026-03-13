@@ -7,7 +7,17 @@ vi.mock("../runtime.js", () => ({
 }));
 
 const { __testing } = await import("../agents/tools/web-search.js");
-const { resolveSearchProvider } = __testing;
+const {
+  resolveSearchProvider,
+  resolveOpenAISearchConfig,
+  resolveOpenAISearchApiKey,
+  resolveOpenAISearchBaseUrl,
+  resolveOpenAISearchModel,
+  resolveOpenAISearchToolName,
+  resolveOpenAISearchEnableSearch,
+  resolveOpenAISearchEnableThinking,
+  resolveOpenAISearchSearchParam,
+} = __testing;
 
 describe("web search provider config", () => {
   it("accepts perplexity provider and config", () => {
@@ -93,7 +103,30 @@ describe("web search provider config", () => {
     expect(res.ok).toBe(true);
   });
 
-  it("accepts qwen provider and config", () => {
+  it("accepts openai-search provider and config", () => {
+    const res = validateConfigObject({
+      tools: {
+        web: {
+          search: {
+            provider: "openai-search",
+            openaiSearch: {
+              apiKey: "test-key", // pragma: allowlist secret
+              baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+              model: "qwen-plus",
+              toolName: "my-search",
+              enableSearch: true,
+              enableThinking: false,
+              searchParam: "enable_search",
+            },
+          },
+        },
+      },
+    });
+
+    expect(res.ok).toBe(true);
+  });
+
+  it("accepts qwen provider and config (deprecated alias)", () => {
     const res = validateConfigObject(
       buildWebSearchProviderConfig({
         enabled: true,
@@ -108,6 +141,97 @@ describe("web search provider config", () => {
     );
 
     expect(res.ok).toBe(true);
+  });
+});
+
+describe("openai-search config resolution", () => {
+  it("uses defaults when no config provided", () => {
+    const config = resolveOpenAISearchConfig({});
+    expect(resolveOpenAISearchBaseUrl(config)).toBe(
+      "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    );
+    expect(resolveOpenAISearchModel(config)).toBe("qwen-plus");
+    expect(resolveOpenAISearchToolName(config)).toBe("openai-search");
+    expect(resolveOpenAISearchEnableSearch(config)).toBe(true);
+    expect(resolveOpenAISearchEnableThinking(config)).toBe(false);
+    expect(resolveOpenAISearchSearchParam(config)).toBe("enable_search");
+  });
+
+  it("uses custom baseUrl, model, toolName, searchParam", () => {
+    const config = resolveOpenAISearchConfig({
+      openaiSearch: {
+        baseUrl: "https://api.deepseek.com/v1",
+        model: "deepseek-chat",
+        toolName: "deepseek-search",
+        searchParam: "web_search",
+      },
+    } as Record<string, unknown>);
+    expect(resolveOpenAISearchBaseUrl(config)).toBe("https://api.deepseek.com/v1");
+    expect(resolveOpenAISearchModel(config)).toBe("deepseek-chat");
+    expect(resolveOpenAISearchToolName(config)).toBe("deepseek-search");
+    expect(resolveOpenAISearchSearchParam(config)).toBe("web_search");
+  });
+
+  it("falls back to qwen config when openaiSearch is absent", () => {
+    const config = resolveOpenAISearchConfig({
+      qwen: {
+        apiKey: "qwen-key", // pragma: allowlist secret
+        baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        model: "qwen-max",
+        enableThinking: true,
+      },
+    } as Record<string, unknown>);
+    expect(resolveOpenAISearchModel(config)).toBe("qwen-max");
+    expect(resolveOpenAISearchEnableThinking(config)).toBe(true);
+  });
+
+  it("prefers openaiSearch over qwen when both present", () => {
+    const config = resolveOpenAISearchConfig({
+      openaiSearch: {
+        model: "custom-model",
+      },
+      qwen: {
+        model: "qwen-plus",
+      },
+    } as Record<string, unknown>);
+    expect(resolveOpenAISearchModel(config)).toBe("custom-model");
+  });
+});
+
+describe("openai-search API key resolution", () => {
+  const savedEnv = { ...process.env };
+
+  beforeEach(() => {
+    delete process.env.DASHSCOPE_API_KEY;
+    delete process.env.OPENAI_SEARCH_API_KEY;
+  });
+
+  afterEach(() => {
+    process.env = { ...savedEnv };
+  });
+
+  it("returns config apiKey when set", () => {
+    expect(resolveOpenAISearchApiKey({ apiKey: "from-config" })).toBe("from-config"); // pragma: allowlist secret
+  });
+
+  it("falls back to DASHSCOPE_API_KEY env var", () => {
+    process.env.DASHSCOPE_API_KEY = "from-dashscope-env"; // pragma: allowlist secret
+    expect(resolveOpenAISearchApiKey({})).toBe("from-dashscope-env");
+  });
+
+  it("falls back to OPENAI_SEARCH_API_KEY env var", () => {
+    process.env.OPENAI_SEARCH_API_KEY = "from-openai-search-env"; // pragma: allowlist secret
+    expect(resolveOpenAISearchApiKey({})).toBe("from-openai-search-env");
+  });
+
+  it("DASHSCOPE_API_KEY takes priority over OPENAI_SEARCH_API_KEY", () => {
+    process.env.DASHSCOPE_API_KEY = "dashscope"; // pragma: allowlist secret
+    process.env.OPENAI_SEARCH_API_KEY = "openai-search"; // pragma: allowlist secret
+    expect(resolveOpenAISearchApiKey({})).toBe("dashscope");
+  });
+
+  it("returns undefined when no key available", () => {
+    expect(resolveOpenAISearchApiKey({})).toBeUndefined();
   });
 });
 
@@ -126,6 +250,7 @@ describe("web search provider auto-detection", () => {
     delete process.env.MOONSHOT_API_KEY;
     delete process.env.METASO_API_KEY;
     delete process.env.DASHSCOPE_API_KEY;
+    delete process.env.OPENAI_SEARCH_API_KEY;
   });
 
   afterEach(() => {
@@ -182,9 +307,14 @@ describe("web search provider auto-detection", () => {
     expect(resolveSearchProvider({})).toBe("metaso");
   });
 
-  it("auto-detects qwen when only DASHSCOPE_API_KEY is set", () => {
+  it("auto-detects openai-search when only DASHSCOPE_API_KEY is set", () => {
     process.env.DASHSCOPE_API_KEY = "test-dashscope-key"; // pragma: allowlist secret
-    expect(resolveSearchProvider({})).toBe("qwen");
+    expect(resolveSearchProvider({})).toBe("openai-search");
+  });
+
+  it("auto-detects openai-search when only OPENAI_SEARCH_API_KEY is set", () => {
+    process.env.OPENAI_SEARCH_API_KEY = "test-key"; // pragma: allowlist secret
+    expect(resolveSearchProvider({})).toBe("openai-search");
   });
 
   it("follows priority order — brave wins when multiple keys available", () => {
@@ -218,12 +348,21 @@ describe("web search provider auto-detection", () => {
     ).toBe("gemini");
   });
 
-  it("explicit qwen provider always wins regardless of keys", () => {
+  it("explicit qwen provider maps to openai-search", () => {
     process.env.BRAVE_API_KEY = "test-brave-key"; // pragma: allowlist secret
     expect(
       resolveSearchProvider({ provider: "qwen" } as unknown as Parameters<
         typeof resolveSearchProvider
       >[0]),
-    ).toBe("qwen");
+    ).toBe("openai-search");
+  });
+
+  it("explicit openai-search provider works", () => {
+    process.env.BRAVE_API_KEY = "test-brave-key"; // pragma: allowlist secret
+    expect(
+      resolveSearchProvider({ provider: "openai-search" } as unknown as Parameters<
+        typeof resolveSearchProvider
+      >[0]),
+    ).toBe("openai-search");
   });
 });

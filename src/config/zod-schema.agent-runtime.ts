@@ -271,6 +271,7 @@ export const ToolsWebSearchSchema = z
         z.literal("gemini"),
         z.literal("kimi"),
         z.literal("metaso"),
+        z.literal("openai-search"),
         z.literal("qwen"),
       ])
       .optional(),
@@ -316,6 +317,18 @@ export const ToolsWebSearchSchema = z
         apiKey: SecretInputSchema.optional().register(sensitive),
         baseUrl: z.string().optional(),
         includeSummary: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
+    openaiSearch: z
+      .object({
+        apiKey: SecretInputSchema.optional().register(sensitive),
+        baseUrl: z.string().optional(),
+        model: z.string().optional(),
+        toolName: z.string().optional(),
+        enableSearch: z.boolean().optional(),
+        enableThinking: z.boolean().optional(),
+        searchParam: z.string().optional(),
       })
       .strict()
       .optional(),
