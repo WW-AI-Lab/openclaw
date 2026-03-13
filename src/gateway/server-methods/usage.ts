@@ -44,7 +44,18 @@ import {
 import type { GatewayRequestHandlers, RespondFn } from "./types.js";
 
 const COST_USAGE_CACHE_TTL_MS = 30_000;
+const PROVIDER_USAGE_CACHE_TTL_MS = 30_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+type ProviderUsageCacheEntry = {
+  summary?: ReturnType<typeof loadProviderUsageSummary> extends Promise<infer T>
+    ? T
+    : Awaited<ReturnType<typeof loadProviderUsageSummary>>;
+  updatedAt?: number;
+  inFlight?: ReturnType<typeof loadProviderUsageSummary>;
+};
+
+const providerUsageCache: ProviderUsageCacheEntry = {};
 
 type DateRange = { startMs: number; endMs: number };
 type DateInterpretation =
@@ -349,7 +360,37 @@ export type { SessionUsageEntry, SessionsUsageAggregates, SessionsUsageResult };
 
 export const usageHandlers: GatewayRequestHandlers = {
   "usage.status": async ({ respond }) => {
-    const summary = await loadProviderUsageSummary();
+    const now = Date.now();
+    // Use cached result if available and not expired
+    if (
+      providerUsageCache.summary &&
+      providerUsageCache.updatedAt &&
+      now - providerUsageCache.updatedAt < PROVIDER_USAGE_CACHE_TTL_MS
+    ) {
+      respond(true, providerUsageCache.summary, undefined);
+      return;
+    }
+
+    // If there's already an in-flight request, wait for it
+    if (providerUsageCache.inFlight) {
+      const summary = await providerUsageCache.inFlight;
+      respond(true, summary, undefined);
+      return;
+    }
+
+    // Make a new request
+    const inFlight = loadProviderUsageSummary()
+      .then((summary) => {
+        providerUsageCache.summary = summary;
+        providerUsageCache.updatedAt = now;
+        return summary;
+      })
+      .finally(() => {
+        providerUsageCache.inFlight = undefined;
+      });
+
+    providerUsageCache.inFlight = inFlight;
+    const summary = await inFlight;
     respond(true, summary, undefined);
   },
   "usage.cost": async ({ respond, params }) => {
