@@ -52,8 +52,8 @@ Model note: while many providers/models are supported, for the best experience a
 Runtime: **Node ≥22**.
 
 ```bash
-npm install -g openclaw@latest
-# or: pnpm add -g openclaw@latest
+npm install -g @ww-ai-lab/openclaw@latest
+# or: pnpm add -g @ww-ai-lab/openclaw@latest
 
 openclaw onboard --install-daemon
 ```
@@ -94,7 +94,7 @@ Details: [Development channels](https://docs.openclaw.ai/install/development-cha
 Prefer `pnpm` for builds from source. Bun is optional for running TypeScript directly.
 
 ```bash
-git clone https://github.com/openclaw/openclaw.git
+git clone https://github.com/WW-AI-Lab/openclaw.git
 cd openclaw
 
 pnpm install
