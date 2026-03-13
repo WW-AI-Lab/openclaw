@@ -4,7 +4,14 @@ import * as secretResolve from "./resolve.js";
 import { createResolverContext } from "./runtime-shared.js";
 import { resolveRuntimeWebTools } from "./runtime-web-tools.js";
 
-type ProviderUnderTest = "brave" | "gemini" | "grok" | "kimi" | "perplexity";
+type ProviderUnderTest =
+  | "brave"
+  | "gemini"
+  | "grok"
+  | "kimi"
+  | "metaso"
+  | "openai-search"
+  | "perplexity";
 
 function asConfig(value: unknown): OpenClawConfig {
   return value as OpenClawConfig;
@@ -35,6 +42,10 @@ function createProviderSecretRefConfig(
   };
   if (provider === "brave") {
     search.apiKey = { source: "env", provider: "default", id: envRefId };
+  } else if (provider === "openai-search") {
+    search.openaiSearch = {
+      apiKey: { source: "env", provider: "default", id: envRefId },
+    };
   } else {
     search[provider] = {
       apiKey: { source: "env", provider: "default", id: envRefId },
@@ -61,6 +72,12 @@ function readProviderKey(config: OpenClawConfig, provider: ProviderUnderTest): u
   }
   if (provider === "kimi") {
     return config.tools?.web?.search?.kimi?.apiKey;
+  }
+  if (provider === "metaso") {
+    return config.tools?.web?.search?.metaso?.apiKey;
+  }
+  if (provider === "openai-search") {
+    return config.tools?.web?.search?.openaiSearch?.apiKey;
   }
   return config.tools?.web?.search?.perplexity?.apiKey;
 }
@@ -90,6 +107,16 @@ describe("runtime web tools resolution", () => {
       provider: "kimi" as const,
       envRefId: "KIMI_PROVIDER_REF",
       resolvedKey: "kimi-provider-key",
+    },
+    {
+      provider: "metaso" as const,
+      envRefId: "METASO_PROVIDER_REF",
+      resolvedKey: "metaso-provider-key",
+    },
+    {
+      provider: "openai-search" as const,
+      envRefId: "OPENAI_SEARCH_PROVIDER_REF",
+      resolvedKey: "openai-search-provider-key",
     },
     {
       provider: "perplexity" as const,
@@ -412,6 +439,55 @@ describe("runtime web tools resolution", () => {
         }),
       ]),
     );
+  });
+
+  it("resolves openai-search from qwen config fallback (SecretRef)", async () => {
+    const { metadata, resolvedConfig } = await runRuntimeWebTools({
+      config: asConfig({
+        tools: {
+          web: {
+            search: {
+              provider: "openai-search",
+              qwen: {
+                apiKey: { source: "env", provider: "default", id: "QWEN_REF" },
+              },
+            },
+          },
+        },
+      }),
+      env: {
+        QWEN_REF: "qwen-fallback-key", // pragma: allowlist secret
+      },
+    });
+
+    expect(metadata.search.providerConfigured).toBe("openai-search");
+    expect(metadata.search.selectedProvider).toBe("openai-search");
+    expect(metadata.search.selectedProviderKeySource).toBe("secretRef");
+    expect(resolvedConfig.tools?.web?.search?.openaiSearch?.apiKey).toBe("qwen-fallback-key");
+  });
+
+  it("resolves openai-search from qwen config when provider is qwen (normalized)", async () => {
+    const { metadata, resolvedConfig } = await runRuntimeWebTools({
+      config: asConfig({
+        tools: {
+          web: {
+            search: {
+              provider: "qwen",
+              qwen: {
+                apiKey: { source: "env", provider: "default", id: "QWEN_REF" },
+              },
+            },
+          },
+        },
+      }),
+      env: {
+        QWEN_REF: "qwen-key-via-alias", // pragma: allowlist secret
+      },
+    });
+
+    expect(metadata.search.providerConfigured).toBe("openai-search");
+    expect(metadata.search.selectedProvider).toBe("openai-search");
+    expect(resolvedConfig.tools?.web?.search?.openaiSearch?.apiKey).toBe("qwen-key-via-alias");
   });
 
   it("fails fast when active Firecrawl SecretRef is unresolved with no fallback", async () => {

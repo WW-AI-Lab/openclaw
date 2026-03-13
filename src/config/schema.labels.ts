@@ -229,10 +229,17 @@ export const FIELD_LABELS: Record<string, string> = {
   "tools.web.search.metaso.apiKey": "Metaso Search API Key", // pragma: allowlist secret
   "tools.web.search.metaso.baseUrl": "Metaso Search Base URL",
   "tools.web.search.metaso.includeSummary": "Metaso Include Summary",
-  "tools.web.search.qwen.apiKey": "Qwen Search API Key", // pragma: allowlist secret
-  "tools.web.search.qwen.baseUrl": "Qwen Search Base URL",
-  "tools.web.search.qwen.model": "Qwen Search Model",
-  "tools.web.search.qwen.enableThinking": "Qwen Enable Thinking",
+  "tools.web.search.openaiSearch.apiKey": "OpenAI-Compatible Search API Key", // pragma: allowlist secret
+  "tools.web.search.openaiSearch.baseUrl": "OpenAI-Compatible Search Base URL",
+  "tools.web.search.openaiSearch.model": "OpenAI-Compatible Search Model",
+  "tools.web.search.openaiSearch.toolName": "OpenAI-Compatible Search Tool Name",
+  "tools.web.search.openaiSearch.enableSearch": "OpenAI-Compatible Search Enable Search",
+  "tools.web.search.openaiSearch.enableThinking": "OpenAI-Compatible Search Enable Thinking",
+  "tools.web.search.openaiSearch.searchParam": "OpenAI-Compatible Search Param Name",
+  "tools.web.search.qwen.apiKey": "Qwen Search API Key (Deprecated)", // pragma: allowlist secret
+  "tools.web.search.qwen.baseUrl": "Qwen Search Base URL (Deprecated)",
+  "tools.web.search.qwen.model": "Qwen Search Model (Deprecated)",
+  "tools.web.search.qwen.enableThinking": "Qwen Enable Thinking (Deprecated)",
   "tools.web.search.perplexity.apiKey": "Perplexity API Key", // pragma: allowlist secret
   "tools.web.search.perplexity.baseUrl": "Perplexity Base URL",
   "tools.web.search.perplexity.model": "Perplexity Model",

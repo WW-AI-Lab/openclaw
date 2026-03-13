@@ -680,12 +680,28 @@ export const FIELD_HELP: Record<string, string> = {
   "tools.web.search.metaso.baseUrl": 'Metaso base URL override (default: "https://metaso.cn").',
   "tools.web.search.metaso.includeSummary":
     "Include summary text in Metaso search responses (default: true).",
+  "tools.web.search.openaiSearch.apiKey":
+    "API key for OpenAI-compatible search provider (fallback: DASHSCOPE_API_KEY or OPENAI_SEARCH_API_KEY env var).",
+  "tools.web.search.openaiSearch.baseUrl":
+    'Base URL for OpenAI-compatible search API (default: "https://dashscope.aliyuncs.com/compatible-mode/v1").',
+  "tools.web.search.openaiSearch.model":
+    'Model name for OpenAI-compatible search (default: "qwen-plus").',
+  "tools.web.search.openaiSearch.toolName":
+    'Display name for the search tool (default: "openai-search"). Shown in agent tool lists and logs.',
+  "tools.web.search.openaiSearch.enableSearch":
+    "Whether to send the search trigger parameter in requests (default: true).",
+  "tools.web.search.openaiSearch.enableThinking":
+    "Enable thinking/reasoning mode if supported by the API (default: false).",
+  "tools.web.search.openaiSearch.searchParam":
+    'Name of the search trigger parameter in the request body (default: "enable_search"). Different APIs may use different parameter names.',
   "tools.web.search.qwen.apiKey":
-    "DashScope API key for Qwen web search (fallback: DASHSCOPE_API_KEY env var).",
+    "[Deprecated: use openaiSearch] DashScope API key for Qwen web search (fallback: DASHSCOPE_API_KEY env var).",
   "tools.web.search.qwen.baseUrl":
-    'DashScope base URL override (default: "https://dashscope.aliyuncs.com/compatible-mode/v1").',
-  "tools.web.search.qwen.model": 'Qwen model override (default: "qwen-plus").',
-  "tools.web.search.qwen.enableThinking": "Enable Qwen thinking mode (default: false).",
+    '[Deprecated: use openaiSearch] DashScope base URL override (default: "https://dashscope.aliyuncs.com/compatible-mode/v1").',
+  "tools.web.search.qwen.model":
+    '[Deprecated: use openaiSearch] Qwen model override (default: "qwen-plus").',
+  "tools.web.search.qwen.enableThinking":
+    "[Deprecated: use openaiSearch] Enable Qwen thinking mode (default: false).",
   "tools.web.search.perplexity.apiKey":
     "Perplexity or OpenRouter API key (fallback: PERPLEXITY_API_KEY or OPENROUTER_API_KEY env var). Direct Perplexity keys default to the Search API; OpenRouter keys use Sonar chat completions.",
   "tools.web.search.perplexity.baseUrl":

@@ -29,7 +29,7 @@ const SEARCH_PROVIDERS = [
   "gemini",
   "kimi",
   "metaso",
-  "qwen",
+  "openai-search",
 ] as const;
 const DEFAULT_SEARCH_COUNT = 5;
 const MAX_SEARCH_COUNT = 10;
@@ -286,8 +286,8 @@ function createWebSearchSchema(params: {
     });
   }
 
-  // metaso and qwen don't support country/language/freshness/date filtering
-  if (params.provider === "metaso" || params.provider === "qwen") {
+  // metaso and openai-search don't support country/language/freshness/date filtering
+  if (params.provider === "metaso" || params.provider === "openai-search") {
     return Type.Object({
       ...querySchema,
     });
@@ -357,11 +357,14 @@ type MetasoConfig = {
   includeSummary?: boolean;
 };
 
-type QwenConfig = {
+type OpenAISearchConfig = {
   apiKey?: string;
   baseUrl?: string;
   model?: string;
+  toolName?: string;
+  enableSearch?: boolean;
   enableThinking?: boolean;
+  searchParam?: string;
 };
 
 type GrokSearchResponse = {
@@ -632,11 +635,11 @@ function missingSearchKeyPayload(provider: (typeof SEARCH_PROVIDERS)[number]) {
       docs: "https://docs.openclaw.ai/tools/web",
     };
   }
-  if (provider === "qwen") {
+  if (provider === "openai-search") {
     return {
-      error: "missing_dashscope_api_key",
+      error: "missing_openai_search_api_key",
       message:
-        "web_search (qwen) needs a DashScope API key. Set DASHSCOPE_API_KEY in the Gateway environment, or configure tools.web.search.qwen.apiKey.",
+        "web_search (openai-search) needs an API key. Set DASHSCOPE_API_KEY or OPENAI_SEARCH_API_KEY in the Gateway environment, or configure tools.web.search.openaiSearch.apiKey.",
       docs: "https://docs.openclaw.ai/tools/web",
     };
   }
@@ -668,8 +671,14 @@ function resolveSearchProvider(search?: WebSearchConfig): (typeof SEARCH_PROVIDE
   if (raw === "metaso") {
     return "metaso";
   }
+  if (raw === "openai-search") {
+    return "openai-search";
+  }
   if (raw === "qwen") {
-    return "qwen";
+    logVerbose(
+      'web_search: provider "qwen" is deprecated; mapped to "openai-search". Use provider: "openai-search" with tools.web.search.openaiSearch config.',
+    );
+    return "openai-search";
   }
   if (raw === "brave") {
     return "brave";
@@ -719,13 +728,13 @@ function resolveSearchProvider(search?: WebSearchConfig): (typeof SEARCH_PROVIDE
       );
       return "metaso";
     }
-    // Qwen
-    const qwenConfig = resolveQwenConfig(search);
-    if (resolveQwenApiKey(qwenConfig)) {
+    // OpenAI-compatible search (includes qwen/DashScope fallback)
+    const openaiSearchConfig = resolveOpenAISearchConfig(search);
+    if (resolveOpenAISearchApiKey(openaiSearchConfig)) {
       logVerbose(
-        'web_search: no provider configured, auto-detected "qwen" from available API keys',
+        'web_search: no provider configured, auto-detected "openai-search" from available API keys',
       );
-      return "qwen";
+      return "openai-search";
     }
     // Perplexity
     const perplexityConfig = resolvePerplexityConfig(search);
@@ -1019,40 +1028,79 @@ function resolveMetasoIncludeSummary(metaso?: MetasoConfig): boolean {
   return metaso?.includeSummary !== false;
 }
 
-function resolveQwenConfig(search?: WebSearchConfig): QwenConfig {
+function resolveOpenAISearchConfig(search?: WebSearchConfig): OpenAISearchConfig {
   if (!search || typeof search !== "object") {
     return {};
   }
+  // Prefer openaiSearch, fall back to deprecated qwen
+  const openaiSearch = "openaiSearch" in search ? search.openaiSearch : undefined;
   const qwen = "qwen" in search ? search.qwen : undefined;
-  if (!qwen || typeof qwen !== "object") {
-    return {};
+  if (openaiSearch && typeof openaiSearch === "object") {
+    if (qwen && typeof qwen === "object") {
+      logVerbose(
+        'web_search: both "openaiSearch" and deprecated "qwen" config found; using "openaiSearch". Remove "qwen" to suppress this warning.',
+      );
+    }
+    return openaiSearch as OpenAISearchConfig;
   }
-  return qwen as QwenConfig;
+  if (qwen && typeof qwen === "object") {
+    logVerbose(
+      'web_search: using deprecated "qwen" config as "openai-search" fallback. Migrate to tools.web.search.openaiSearch.',
+    );
+    return qwen as OpenAISearchConfig;
+  }
+  return {};
 }
 
-function resolveQwenApiKey(qwen?: QwenConfig): string | undefined {
-  const fromConfig = normalizeApiKey(qwen?.apiKey);
+function resolveOpenAISearchApiKey(config?: OpenAISearchConfig): string | undefined {
+  const fromConfig = normalizeApiKey(config?.apiKey);
   if (fromConfig) {
     return fromConfig;
   }
-  const fromEnv = normalizeApiKey(process.env.DASHSCOPE_API_KEY);
-  return fromEnv || undefined;
+  const fromEnvDashscope = normalizeApiKey(process.env.DASHSCOPE_API_KEY);
+  if (fromEnvDashscope) {
+    return fromEnvDashscope;
+  }
+  const fromEnvOpenAI = normalizeApiKey(process.env.OPENAI_SEARCH_API_KEY);
+  return fromEnvOpenAI || undefined;
 }
 
-function resolveQwenBaseUrl(qwen?: QwenConfig): string {
+function resolveOpenAISearchBaseUrl(config?: OpenAISearchConfig): string {
   const fromConfig =
-    qwen && "baseUrl" in qwen && typeof qwen.baseUrl === "string" ? qwen.baseUrl.trim() : "";
+    config && "baseUrl" in config && typeof config.baseUrl === "string"
+      ? config.baseUrl.trim()
+      : "";
   return fromConfig || DEFAULT_QWEN_BASE_URL;
 }
 
-function resolveQwenModel(qwen?: QwenConfig): string {
+function resolveOpenAISearchModel(config?: OpenAISearchConfig): string {
   const fromConfig =
-    qwen && "model" in qwen && typeof qwen.model === "string" ? qwen.model.trim() : "";
+    config && "model" in config && typeof config.model === "string" ? config.model.trim() : "";
   return fromConfig || DEFAULT_QWEN_MODEL;
 }
 
-function resolveQwenEnableThinking(qwen?: QwenConfig): boolean {
-  return qwen?.enableThinking === true;
+function resolveOpenAISearchToolName(config?: OpenAISearchConfig): string {
+  const fromConfig =
+    config && "toolName" in config && typeof config.toolName === "string"
+      ? config.toolName.trim()
+      : "";
+  return fromConfig || "openai-search";
+}
+
+function resolveOpenAISearchEnableSearch(config?: OpenAISearchConfig): boolean {
+  return config?.enableSearch !== false;
+}
+
+function resolveOpenAISearchEnableThinking(config?: OpenAISearchConfig): boolean {
+  return config?.enableThinking === true;
+}
+
+function resolveOpenAISearchSearchParam(config?: OpenAISearchConfig): string {
+  const fromConfig =
+    config && "searchParam" in config && typeof config.searchParam === "string"
+      ? config.searchParam.trim()
+      : "";
+  return fromConfig || "enable_search";
 }
 
 async function withTrustedWebSearchEndpoint<T>(
@@ -1742,7 +1790,7 @@ async function runMetasoSearch(params: {
   );
 }
 
-type QwenSearchResponse = {
+type OpenAISearchResponse = {
   choices?: Array<{
     finish_reason?: string;
     message?: {
@@ -1753,12 +1801,15 @@ type QwenSearchResponse = {
   }>;
 };
 
-async function runQwenSearch(params: {
+async function runOpenAISearch(params: {
   query: string;
   apiKey: string;
   baseUrl: string;
   model: string;
+  toolName: string;
+  enableSearch: boolean;
   enableThinking: boolean;
+  searchParam: string;
   timeoutSeconds: number;
 }): Promise<{ content: string; citations: string[] }> {
   const baseUrl = params.baseUrl.trim().replace(/\/$/, "");
@@ -1771,11 +1822,15 @@ async function runQwenSearch(params: {
         content: params.query,
       },
     ],
-    enable_search: true,
   };
+  if (params.enableSearch) {
+    body[params.searchParam] = true;
+  }
   if (params.enableThinking) {
     body.enable_thinking = true;
   }
+
+  const displayName = params.toolName || "openai-search";
 
   return withTrustedWebSearchEndpoint(
     {
@@ -1792,10 +1847,10 @@ async function runQwenSearch(params: {
     },
     async (res) => {
       if (!res.ok) {
-        return await throwWebSearchApiError(res, "Qwen");
+        return await throwWebSearchApiError(res, displayName);
       }
 
-      const data = (await res.json()) as QwenSearchResponse;
+      const data = (await res.json()) as OpenAISearchResponse;
       const content = data.choices?.[0]?.message?.content ?? "No response";
       const urlRegex = /https?:\/\/[^\s)]+/g;
       const urls = content.match(urlRegex) ?? [];
@@ -1887,9 +1942,12 @@ async function runWebSearch(params: {
   kimiModel?: string;
   metasoBaseUrl?: string;
   metasoIncludeSummary?: boolean;
-  qwenBaseUrl?: string;
-  qwenModel?: string;
-  qwenEnableThinking?: boolean;
+  openaiSearchBaseUrl?: string;
+  openaiSearchModel?: string;
+  openaiSearchToolName?: string;
+  openaiSearchEnableSearch?: boolean;
+  openaiSearchEnableThinking?: boolean;
+  openaiSearchSearchParam?: string;
   braveMode?: "web" | "llm-context";
 }): Promise<Record<string, unknown>> {
   const effectiveBraveMode = params.braveMode ?? "web";
@@ -1904,8 +1962,8 @@ async function runWebSearch(params: {
             ? `${params.kimiBaseUrl ?? DEFAULT_KIMI_BASE_URL}:${params.kimiModel ?? DEFAULT_KIMI_MODEL}`
             : params.provider === "metaso"
               ? `${params.metasoBaseUrl ?? DEFAULT_METASO_BASE_URL}:${String(params.metasoIncludeSummary ?? true)}`
-              : params.provider === "qwen"
-                ? `${params.qwenBaseUrl ?? DEFAULT_QWEN_BASE_URL}:${params.qwenModel ?? DEFAULT_QWEN_MODEL}:${String(params.qwenEnableThinking ?? false)}`
+              : params.provider === "openai-search"
+                ? `${params.openaiSearchBaseUrl ?? DEFAULT_QWEN_BASE_URL}:${params.openaiSearchModel ?? DEFAULT_QWEN_MODEL}:${String(params.openaiSearchEnableThinking ?? false)}:${params.openaiSearchSearchParam ?? "enable_search"}`
                 : "";
   const cacheKey = normalizeCacheKey(
     params.provider === "brave" && effectiveBraveMode === "llm-context"
@@ -2062,20 +2120,26 @@ async function runWebSearch(params: {
     return payload;
   }
 
-  if (params.provider === "qwen") {
-    const { content, citations } = await runQwenSearch({
+  if (params.provider === "openai-search") {
+    const openaiSearchModel = params.openaiSearchModel ?? DEFAULT_QWEN_MODEL;
+    const openaiSearchToolName = params.openaiSearchToolName ?? "openai-search";
+    const { content, citations } = await runOpenAISearch({
       query: params.query,
       apiKey: params.apiKey,
-      baseUrl: params.qwenBaseUrl ?? DEFAULT_QWEN_BASE_URL,
-      model: params.qwenModel ?? DEFAULT_QWEN_MODEL,
-      enableThinking: params.qwenEnableThinking ?? false,
+      baseUrl: params.openaiSearchBaseUrl ?? DEFAULT_QWEN_BASE_URL,
+      model: openaiSearchModel,
+      toolName: openaiSearchToolName,
+      enableSearch: params.openaiSearchEnableSearch ?? true,
+      enableThinking: params.openaiSearchEnableThinking ?? false,
+      searchParam: params.openaiSearchSearchParam ?? "enable_search",
       timeoutSeconds: params.timeoutSeconds,
     });
 
     const payload = {
       query: params.query,
       provider: params.provider,
-      model: params.qwenModel ?? DEFAULT_QWEN_MODEL,
+      model: openaiSearchModel,
+      toolName: openaiSearchToolName,
       tookMs: Date.now() - start,
       externalContent: {
         untrusted: true,
@@ -2257,7 +2321,7 @@ export function createWebSearchTool(options?: {
   const geminiConfig = resolveGeminiConfig(search);
   const kimiConfig = resolveKimiConfig(search);
   const metasoConfig = resolveMetasoConfig(search);
-  const qwenConfig = resolveQwenConfig(search);
+  const openaiSearchConfig = resolveOpenAISearchConfig(search);
   const braveConfig = resolveBraveConfig(search);
   const braveMode = resolveBraveMode(braveConfig);
 
@@ -2274,8 +2338,8 @@ export function createWebSearchTool(options?: {
             ? "Search the web using Gemini with Google Search grounding. Returns AI-synthesized answers with citations from Google Search."
             : provider === "metaso"
               ? "Search the web using Metaso. Returns AI-synthesized answers with citations."
-              : provider === "qwen"
-                ? "Search the web using Qwen with DashScope enable_search. Returns AI-synthesized answers with citations."
+              : provider === "openai-search"
+                ? `Search the web using ${resolveOpenAISearchToolName(openaiSearchConfig)} (OpenAI-compatible). Returns AI-synthesized answers with citations.`
                 : braveMode === "llm-context"
                   ? "Search the web using Brave Search LLM Context API. Returns pre-extracted page content (text chunks, tables, code blocks) optimized for LLM grounding."
                   : "Search the web using Brave Search API. Supports region-specific and localized search via country and language parameters. Returns titles, URLs, and snippets for fast research.";
@@ -2304,8 +2368,8 @@ export function createWebSearchTool(options?: {
                 ? resolveGeminiApiKey(geminiConfig)
                 : provider === "metaso"
                   ? resolveMetasoApiKey(metasoConfig)
-                  : provider === "qwen"
-                    ? resolveQwenApiKey(qwenConfig)
+                  : provider === "openai-search"
+                    ? resolveOpenAISearchApiKey(openaiSearchConfig)
                     : resolveSearchApiKey(search);
 
       if (!apiKey) {
@@ -2544,9 +2608,12 @@ export function createWebSearchTool(options?: {
         kimiModel: resolveKimiModel(kimiConfig),
         metasoBaseUrl: resolveMetasoBaseUrl(metasoConfig),
         metasoIncludeSummary: resolveMetasoIncludeSummary(metasoConfig),
-        qwenBaseUrl: resolveQwenBaseUrl(qwenConfig),
-        qwenModel: resolveQwenModel(qwenConfig),
-        qwenEnableThinking: resolveQwenEnableThinking(qwenConfig),
+        openaiSearchBaseUrl: resolveOpenAISearchBaseUrl(openaiSearchConfig),
+        openaiSearchModel: resolveOpenAISearchModel(openaiSearchConfig),
+        openaiSearchToolName: resolveOpenAISearchToolName(openaiSearchConfig),
+        openaiSearchEnableSearch: resolveOpenAISearchEnableSearch(openaiSearchConfig),
+        openaiSearchEnableThinking: resolveOpenAISearchEnableThinking(openaiSearchConfig),
+        openaiSearchSearchParam: resolveOpenAISearchSearchParam(openaiSearchConfig),
         braveMode,
       });
       return jsonResult(result);
@@ -2581,10 +2648,14 @@ export const __testing = {
   resolveMetasoApiKey,
   resolveMetasoBaseUrl,
   resolveMetasoIncludeSummary,
-  resolveQwenApiKey,
-  resolveQwenBaseUrl,
-  resolveQwenModel,
-  resolveQwenEnableThinking,
+  resolveOpenAISearchConfig,
+  resolveOpenAISearchApiKey,
+  resolveOpenAISearchBaseUrl,
+  resolveOpenAISearchModel,
+  resolveOpenAISearchToolName,
+  resolveOpenAISearchEnableSearch,
+  resolveOpenAISearchEnableThinking,
+  resolveOpenAISearchSearchParam,
   resolveRedirectUrl: resolveCitationRedirectUrl,
   resolveBraveMode,
   mapBraveLlmContextResults,
