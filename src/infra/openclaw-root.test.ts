@@ -177,8 +177,8 @@ describe("resolveOpenClawPackageRoot", () => {
     const project = fx("symlink-node-modules-fallback");
     const argv1 = path.join(project, "node_modules", ".bin", "openclaw");
     state.realpaths.set(abs(argv1), abs(path.join(project, "versions", "current", "openclaw.mjs")));
-    const pkgRoot = path.join(project, "node_modules", "openclaw");
-    setFile(path.join(pkgRoot, "package.json"), JSON.stringify({ name: "openclaw" }));
+    const pkgRoot = path.join(project, "node_modules", "@ww-ai-lab", "openclaw");
+    setFile(path.join(pkgRoot, "package.json"), JSON.stringify({ name: "@ww-ai-lab/openclaw" }));
 
     expect(resolveOpenClawPackageRootSync({ argv1 })).toBe(pkgRoot);
   });
