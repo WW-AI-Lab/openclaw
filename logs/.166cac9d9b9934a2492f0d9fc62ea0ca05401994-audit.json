@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "/Users/liuxingwang/go/src/openclaw/logs/.166cac9d9b9934a2492f0d9fc62ea0ca05401994-audit.json",
+    "files": [
+        {
+            "date": 1773370650120,
+            "name": "/Users/liuxingwang/go/src/openclaw/logs/openbotgate-2026-03-13.log",
+            "hash": "976519608c6f3a99236f882fd373dbc3ac6cea3bd403cdbb98870a9fb62fd537"
+        }
+    ],
+    "hashType": "sha256"
+}
