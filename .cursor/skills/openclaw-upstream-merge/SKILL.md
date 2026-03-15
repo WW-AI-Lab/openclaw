@@ -33,6 +33,7 @@ git log --oneline HEAD -5           # 查看本地最新提交
 ```
 
 对比上游和本地的差异：
+
 ```bash
 git log --oneline HEAD..origin/main | wc -l   # 上游领先多少提交
 ```
@@ -51,38 +52,43 @@ git merge origin/main --no-edit
 
 **高优先级文件（必须保留本地修改）：**
 
-| 文件 | 策略 |
-|------|------|
-| `src/agents/tools/web-search.ts` | 保留本地 qwen/metaso 全部代码，同时接受上游对其他 provider 的修改 |
-| `src/config/types.tools.ts` | 保留本地 qwen/metaso 类型定义 |
-| `src/config/zod-schema.agent-runtime.ts` | 保留本地 qwen/metaso schema |
-| `src/config/schema.help.ts` | 保留本地 qwen/metaso 帮助文本 |
-| `src/config/schema.labels.ts` | 保留本地 qwen/metaso 标签 |
-| `package.json` | 保留本地 `"name": "@ww-ai-lab/openclaw"` 和自定义版本号 |
+| 文件                                     | 策略                                                              |
+| ---------------------------------------- | ----------------------------------------------------------------- |
+| `src/agents/tools/web-search.ts`         | 保留本地 qwen/metaso 全部代码，同时接受上游对其他 provider 的修改 |
+| `src/config/types.tools.ts`              | 保留本地 qwen/metaso 类型定义                                     |
+| `src/config/zod-schema.agent-runtime.ts` | 保留本地 qwen/metaso schema                                       |
+| `src/config/schema.help.ts`              | 保留本地 qwen/metaso 帮助文本                                     |
+| `src/config/schema.labels.ts`            | 保留本地 qwen/metaso 标签                                         |
+| `package.json`                           | 保留本地 `"name": "@ww-ai-lab/openclaw"` 和自定义版本号           |
 
 **低优先级文件（接受上游）：**
 
-| 文件 | 策略 |
-|------|------|
+| 文件                      | 策略                                             |
+| ------------------------- | ------------------------------------------------ |
 | `AGENTS.md` / `CLAUDE.md` | 接受上游版本（本地保护规则已迁移到 `AGENTS.md`） |
-| `pnpm-lock.yaml` | 接受上游版本，后续重新生成 |
-| 其他无自定义修改的文件 | 接受上游版本 |
+| `pnpm-lock.yaml`          | 接受上游版本，后续重新生成                       |
+| 其他无自定义修改的文件    | 接受上游版本                                     |
 
 ### 2.3 合并后验证
 
 检查 merge conflict markers 残留：
+
 ```bash
 grep -rn '<<<<<<\|>>>>>>\|======' src/agents/tools/web-search.ts src/config/types.tools.ts src/config/zod-schema.agent-runtime.ts
 ```
+
 若有，立即清理。
 
 检查自定义代码完整性：
+
 ```bash
 grep -c 'metaso\|qwen' src/agents/tools/web-search.ts
-# 预期 ≥ 70。若为 0 或显著偏低，说明代码被覆盖，需手动恢复。
+# 预期 ≥ 40。若为 0 或显著偏低，说明代码被覆盖，需手动恢复。
+# 注：qwen 已升级为 openai-search 的别名，实际引用数约 50。
 ```
 
 关键函数检查清单（任一缺失则需从历史提交恢复）：
+
 - `runMetasoSearch` / `runQwenSearch`
 - `resolveMetasoConfig` / `resolveQwenConfig`
 - `resolveMetasoApiKey` / `resolveQwenApiKey`
@@ -118,13 +124,33 @@ grep '"openclaw": "workspace' packages/clawdbot/package.json packages/moltbot/pa
 
 若发现 `"openclaw": "workspace:*"`，替换为 `"@ww-ai-lab/openclaw": "workspace:*"`。
 
-### 4.2 重新安装依赖
+### 4.2 修复 README.md 和 package.json 中的仓库链接
+
+上游合并会重置 GitHub 链接为 `openclaw/openclaw`，需要替换为 `WW-AI-Lab/openclaw`：
+
+```bash
+# README.md 中需要替换的内容：
+# - 安装命令: npm install -g openclaw@latest → npm install -g @ww-ai-lab/openclaw@latest
+# - git clone 地址: github.com/openclaw/openclaw → github.com/WW-AI-Lab/openclaw
+# - 徽标/CI/Release 链接中的 openclaw/openclaw → WW-AI-Lab/openclaw
+# - Star History/DeepWiki 链接中的 openclaw/openclaw → WW-AI-Lab/openclaw
+
+# package.json 中需要替换的内容：
+# - homepage: github.com/openclaw/openclaw → github.com/WW-AI-Lab/openclaw
+# - bugs.url: github.com/openclaw/openclaw → github.com/WW-AI-Lab/openclaw
+# - repository.url: github.com/openclaw/openclaw → github.com/WW-AI-Lab/openclaw
+```
+
+注意：docs 目录中的上游文档链接不需要修改（docs/zh-CN/ 是生成的）。
+
+### 4.3 重新安装依赖
 
 ```bash
 pnpm install --no-frozen-lockfile
 ```
 
 验证关键依赖版本：
+
 ```bash
 node -e "console.log(require('./node_modules/@mariozechner/pi-ai/package.json').version)"
 # 必须 ≥ 0.57.1（含 ./oauth 子路径导出）
@@ -203,6 +229,7 @@ curl -s -o /dev/null -w "HTTP %{http_code}" http://127.0.0.1:18789/
 ```
 
 若 qwen/metaso 配置丢失，从备份恢复：
+
 ```bash
 # 查找包含 qwen 配置的备份
 for f in ~/.openclaw/openclaw.json.bak* ~/.openclaw/openclaw.json-bak*; do
@@ -225,7 +252,11 @@ done
 ```bash
 npx vitest run src/config/config.web-search-provider.test.ts --no-coverage
 npx vitest run src/agents/tools/web-search.test.ts --no-coverage
+npx vitest run src/infra/openclaw-root.test.ts --no-coverage
 ```
+
+注意：`openclaw-root.test.ts` 中的 symlink 回退测试需要使用 `@ww-ai-lab/openclaw` 包名。
+如果上游新增了使用 `"openclaw"` 包名的测试用例，需要适配为 `"@ww-ai-lab/openclaw"`。
 
 ## 步骤 6：问题修复循环
 
@@ -251,8 +282,8 @@ ls dist/control-ui/index.html || { echo "BLOCK: UI 未构建"; exit 1; }
 # 2. metaso/qwen schema 必须完整
 grep -c 'metaso' dist/*.js | awk -F: '{s+=$2} END{if(s<10){print "BLOCK: metaso schema 缺失"; exit 1} else print "OK:", s, "refs"}'
 
-# 3. npm 认证可用
-npm whoami || { echo "BLOCK: npm 未认证"; exit 1; }
+# 3. npm 认证可用（必须指定 registry，因为默认 registry 可能是镜像站）
+npm whoami --registry https://registry.npmjs.org/ || { echo "BLOCK: npm 未认证"; exit 1; }
 ```
 
 ### 7.2 执行发布
@@ -262,15 +293,18 @@ npm whoami || { echo "BLOCK: npm 未认证"; exit 1; }
 rm -f package-lock.json
 
 # 版本含 -N 后缀时，需要 --tag latest
-npm publish --access public --ignore-scripts --tag latest
+# 必须指定 --registry，因为 .npmrc 默认 registry 可能是 npmmirror 镜像站
+npm publish --access public --ignore-scripts --tag latest --registry https://registry.npmjs.org/
 
 # 验证发布
-npm view @ww-ai-lab/openclaw version --userconfig "$(mktemp)"
+npm view @ww-ai-lab/openclaw version --userconfig "$(mktemp)" --registry https://registry.npmjs.org/
 ```
 
 注意：
+
 - 若版本号不含 `-N` 后缀（纯 `YYYY.M.D` 格式），不需要 `--tag latest`。
-- 本地 npm 已认证，无需 1Password；发布前用 `npm whoami` 确认即可。
+- `.npmrc` 中 `@ww-ai-lab` scope 已配置指向 `registry.npmjs.org`，scoped 包发布会自动使用正确的 registry。但显式指定更安全。
+- 本地 npm 已认证（`npm whoami --registry https://registry.npmjs.org/` 验证），无需 1Password。
 
 ## 步骤 8：推送 GitHub 并创建 Release
 
@@ -279,9 +313,17 @@ npm view @ww-ai-lab/openclaw version --userconfig "$(mktemp)"
 ```bash
 # 确保在 main 分支（不要从 develop 发布）
 git checkout main
-git merge develop --ff-only   # 或 git reset --hard develop（若 main 落后太多）
+git merge develop --no-edit   # 非 fast-forward 时会产生 merge commit
+
+# 推送到远程（可能需要 force push）
 git push myfork main
+# 若被拒，检查远程是否只有旧的 README/版本提交可以安全覆盖
+# git log --oneline HEAD..myfork/main  # 查看远程独有的提交
+# 确认安全后: git push myfork main --force-with-lease
 ```
+
+> **⚠️ 教训 (2026.3.15)**：develop 和 main 分支可能因各自独立的版本提交而产生分歧。
+> `--ff-only` 会失败。使用 `git merge develop --no-edit` 或在确认安全后使用 `--force-with-lease`。
 
 ### 8.2 创建 Tag 和 Release
 
@@ -307,13 +349,17 @@ gh release create "v${VERSION}" \
 
 ## 历史教训速查
 
-| 问题 | 根因 | 防护措施 |
-|------|------|---------|
-| qwen/metaso 运行时代码丢失 | 合并时 `web-search.ts` 的自定义代码被上游覆盖，且 develop 分支的 restore 提交遗漏了该文件 | 合并后必检 `grep -c 'runQwenSearch' src/agents/tools/web-search.ts`，结果须 ≥ 1 |
-| 配置中 qwen/metaso 字段消失 | Zod `.strict()` 验证在旧代码（无 qwen/metaso schema）下会静默剥离未知字段 | 先安装新代码再操作配置；从备份恢复 |
-| `ERR_MODULE_NOT_FOUND: @mariozechner/pi-ai/oauth` | `packages/*/package.json` 中 `"openclaw": "workspace:*"` 导致 pnpm 解析异常，安装了低版本依赖 | 合并后立即修复工作区引用为 `"@ww-ai-lab/openclaw": "workspace:*"` |
-| npm publish 被拒（prerelease 版本） | 版本号含 `-N` 后缀被 npm 视为 prerelease | 使用 `--tag latest` 强制发布为稳定版 |
-| 从 develop 而非 main 发布 | 忘记将 develop 合并到 main | 发布前必须切到 main 并 merge/reset |
-| `openclaw doctor` 报 "Unrecognized keys: metaso, qwen" | 旧 dist 残留的 chunk 中 schema 定义不完整；tsdown 代码拆分导致不同代码路径加载不同 chunk | 构建前必须 `rm -rf dist/` 清除旧产物；构建后用 `openclaw doctor` 验证无 "Invalid config" 输出 |
-| 安装后 gateway 没有 Web UI 界面 | `pnpm build` 不包含 `ui:build` 步骤，只有 `prepack` 才串联两者；手动构建后 `dist/control-ui/` 缺失 | 构建流程必须执行 `pnpm build && pnpm ui:build`；发布前检查 `dist/control-ui/index.html` 存在 |
-| 包名改为 `@ww-ai-lab/openclaw` 后全局安装引用异常 | `npm install -g .` 会生成 `package-lock.json`，与 pnpm workspace 冲突；工作区引用被上游覆盖 | 安装后删除 `package-lock.json`；合并后立即检查 `packages/*/package.json` 引用是否为 `@ww-ai-lab/openclaw` |
+| 问题                                                   | 根因                                                                                                                  | 防护措施                                                                                                    |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| qwen/metaso 运行时代码丢失                             | 合并时 `web-search.ts` 的自定义代码被上游覆盖，且 develop 分支的 restore 提交遗漏了该文件                             | 合并后必检 `grep -c 'runQwenSearch' src/agents/tools/web-search.ts`，结果须 ≥ 1                             |
+| 配置中 qwen/metaso 字段消失                            | Zod `.strict()` 验证在旧代码（无 qwen/metaso schema）下会静默剥离未知字段                                             | 先安装新代码再操作配置；从备份恢复                                                                          |
+| `ERR_MODULE_NOT_FOUND: @mariozechner/pi-ai/oauth`      | `packages/*/package.json` 中 `"openclaw": "workspace:*"` 导致 pnpm 解析异常，安装了低版本依赖                         | 合并后立即修复工作区引用为 `"@ww-ai-lab/openclaw": "workspace:*"`                                           |
+| npm publish 被拒（prerelease 版本）                    | 版本号含 `-N` 后缀被 npm 视为 prerelease                                                                              | 使用 `--tag latest` 强制发布为稳定版                                                                        |
+| 从 develop 而非 main 发布                              | 忘记将 develop 合并到 main                                                                                            | 发布前必须切到 main 并 merge/reset                                                                          |
+| `openclaw doctor` 报 "Unrecognized keys: metaso, qwen" | 旧 dist 残留的 chunk 中 schema 定义不完整；tsdown 代码拆分导致不同代码路径加载不同 chunk                              | 构建前必须 `rm -rf dist/` 清除旧产物；构建后用 `openclaw doctor` 验证无 "Invalid config" 输出               |
+| 安装后 gateway 没有 Web UI 界面                        | `pnpm build` 不包含 `ui:build` 步骤，只有 `prepack` 才串联两者；手动构建后 `dist/control-ui/` 缺失                    | 构建流程必须执行 `pnpm build && pnpm ui:build`；发布前检查 `dist/control-ui/index.html` 存在                |
+| 包名改为 `@ww-ai-lab/openclaw` 后全局安装引用异常      | `npm install -g .` 会生成 `package-lock.json`，与 pnpm workspace 冲突；工作区引用被上游覆盖                           | 安装后删除 `package-lock.json`；合并后立即检查 `packages/*/package.json` 引用是否为 `@ww-ai-lab/openclaw`   |
+| `npm whoami` / `npm publish` 失败（ENEEDAUTH）         | `.npmrc` 默认 registry 是 npmmirror 镜像站，不是 npmjs.org；whoami/publish 找不到 token                               | 所有 npm 认证/发布命令必须显式加 `--registry https://registry.npmjs.org/`（或依赖 `@ww-ai-lab` scope 配置） |
+| develop 和 main 分支分歧导致合并失败                   | 两个分支各自独立做了版本提交/README 修改，不能 fast-forward                                                           | 使用 `git merge develop --no-edit`（非 ff）；或确认远程仅有可覆盖提交后 `--force-with-lease`                |
+| README/package.json 中 GitHub 链接被上游重置           | 合并上游后 `openclaw/openclaw` 链接覆盖了 `WW-AI-Lab/openclaw`                                                        | 合并后检查并替换 README.md 和 package.json 中的仓库链接                                                     |
+| `openclaw-root.test.ts` symlink 测试失败               | 上游新增测试使用 `"openclaw"` 包名，但 PRIMARY_CORE_PACKAGE_NAME 是 `@ww-ai-lab/openclaw`，路径搜索优先匹配 scoped 包 | 适配新增的 openclaw-root 测试用例使用 `@ww-ai-lab/openclaw` 路径                                            |
