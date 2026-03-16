@@ -340,6 +340,7 @@ function deriveIdHint(params: {
   const canonicalPackageId =
     {
       "ollama-provider": "ollama",
+      "openshell-sandbox": "openshell",
       "sglang-provider": "sglang",
       "vllm-provider": "vllm",
     }[unscoped] ?? unscoped;

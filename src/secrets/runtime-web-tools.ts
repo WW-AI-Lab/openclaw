@@ -61,8 +61,10 @@ function normalizeProvider(
     return undefined;
   }
   const normalized = value.trim().toLowerCase();
-  if (providers.some((provider) => provider.id === normalized)) {
-    return normalized;
+  // "qwen" is a deprecated alias for "openai-search"
+  const resolved = normalized === "qwen" ? "openai-search" : normalized;
+  if (providers.some((provider) => provider.id === resolved)) {
+    return resolved;
   }
   return undefined;
 }
