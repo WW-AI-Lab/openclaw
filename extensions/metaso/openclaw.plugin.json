@@ -1,0 +1,8 @@
+{
+  "id": "metaso",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

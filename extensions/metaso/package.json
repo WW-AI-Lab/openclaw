@@ -1,0 +1,12 @@
+{
+  "name": "@openclaw/metaso-plugin",
+  "version": "2026.3.14",
+  "private": true,
+  "description": "OpenClaw Metaso web search plugin",
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

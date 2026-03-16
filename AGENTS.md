@@ -72,6 +72,8 @@
 
 - `docs/zh-CN/**` is generated; do not edit unless the user explicitly asks.
 - Pipeline: update English docs → adjust glossary (`docs/.i18n/glossary.zh-CN.json`) → run `scripts/docs-i18n` → apply targeted fixes only if instructed.
+- Before rerunning `scripts/docs-i18n`, add glossary entries for any new technical terms, page titles, or short nav labels that must stay in English or use a fixed translation (for example `Doctor` or `Polls`).
+- `pnpm docs:check-i18n-glossary` enforces glossary coverage for changed English doc titles and short internal doc labels before translation reruns.
 - Translation memory: `docs/.i18n/zh-CN.tm.jsonl` (generated).
 - See `docs/.i18n/README.md`.
 - The pipeline can be slow/inefficient; if it’s dragging, ping @jospalmbier on Discord instead of hacking around it.
@@ -97,7 +99,7 @@
 - Prefer Bun for TypeScript execution (scripts, dev, tests): `bun <file.ts>` / `bunx <tool>`.
 - Run CLI in dev: `pnpm openclaw ...` (bun) or `pnpm dev`.
 - Node remains supported for running built output (`dist/*`) and production installs.
-- Mac packaging (dev): `scripts/package-mac-app.sh` defaults to current arch. Release checklist: `docs/platforms/mac/release.md`.
+- Mac packaging (dev): `scripts/package-mac-app.sh` defaults to current arch.
 - Type-check/build: `pnpm build`
 - TypeScript checks: `pnpm tsgo`
 - Lint/format: `pnpm check`
@@ -179,7 +181,7 @@
 - Pi sessions live under `~/.openclaw/sessions/` by default; the base directory is not configurable.
 - Environment variables: see `~/.profile`.
 - Never commit or publish real phone numbers, videos, or live configuration values. Use obviously fake placeholders in docs, tests, and examples.
-- Release flow: always read `docs/reference/RELEASING.md` and `docs/platforms/mac/release.md` before any release work; do not ask routine questions once those docs answer them.
+- Release flow: use the private [maintainer release docs](https://github.com/openclaw/maintainers/blob/main/release/README.md) for the actual runbook; use `docs/reference/RELEASING.md` for the public release policy.
 
 ## GHSA (Repo Advisory) Patch/Publish
 
@@ -256,14 +258,13 @@
 - If shared guardrails are available locally, review them; otherwise follow this repo's guidance.
 - SwiftUI state management (iOS/macOS): prefer the `Observation` framework (`@Observable`, `@Bindable`) over `ObservableObject`/`@StateObject`; don’t introduce new `ObservableObject` unless required for compatibility, and migrate existing usages when touching related code.
 - Connection providers: when adding a new connection, update every UI surface and docs (macOS app, web UI, mobile if applicable, onboarding/overview docs) and add matching status + configuration forms so provider lists and settings stay in sync.
-- Version locations: `package.json` (CLI), `apps/android/app/build.gradle.kts` (versionName/versionCode), `apps/ios/Sources/Info.plist` + `apps/ios/Tests/Info.plist` (CFBundleShortVersionString/CFBundleVersion), `apps/macos/Sources/OpenClaw/Resources/Info.plist` (CFBundleShortVersionString/CFBundleVersion), `docs/install/updating.md` (pinned npm version), `docs/platforms/mac/release.md` (APP_VERSION/APP_BUILD examples), Peekaboo Xcode projects/Info.plists (MARKETING_VERSION/CURRENT_PROJECT_VERSION).
+- Version locations: `package.json` (CLI), `apps/android/app/build.gradle.kts` (versionName/versionCode), `apps/ios/Sources/Info.plist` + `apps/ios/Tests/Info.plist` (CFBundleShortVersionString/CFBundleVersion), `apps/macos/Sources/OpenClaw/Resources/Info.plist` (CFBundleShortVersionString/CFBundleVersion), `docs/install/updating.md` (pinned npm version), and Peekaboo Xcode projects/Info.plists (MARKETING_VERSION/CURRENT_PROJECT_VERSION).
 - "Bump version everywhere" means all version locations above **except** `appcast.xml` (only touch appcast when cutting a new macOS Sparkle release).
 - **Restart apps:** “restart iOS/Android apps” means rebuild (recompile/install) and relaunch, not just kill/launch.
 - **Device checks:** before testing, verify connected real devices (iOS/Android) before reaching for simulators/emulators.
 - iOS Team ID lookup: `security find-identity -p codesigning -v` → use Apple Development (…) TEAMID. Fallback: `defaults read com.apple.dt.Xcode IDEProvisioningTeamIdentifiers`.
 - A2UI bundle hash: `src/canvas-host/a2ui/.bundle.hash` is auto-generated; ignore unexpected changes, and only regenerate via `pnpm canvas:a2ui:bundle` (or `scripts/bundle-a2ui.sh`) when needed. Commit the hash as a separate commit.
-- Release signing/notary keys are managed outside the repo; follow internal release docs.
-- Notary auth env vars (`APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_API_KEY_P8`) are expected in your environment (per internal release docs).
+- Release signing/notary credentials are managed outside the repo; maintainers keep that setup in the private [maintainer release docs](https://github.com/openclaw/maintainers/tree/main/release).
 - **Multi-agent safety:** do **not** create/apply/drop `git stash` entries unless explicitly requested (this includes `git pull --rebase --autostash`). Assume other agents may be working; keep unrelated WIP untouched and avoid cross-cutting state changes.
 - **Multi-agent safety:** when the user says "push", you may `git pull --rebase` to integrate latest changes (never discard other agents' work). When the user says "commit", scope to your changes only. When the user says "commit all", commit everything in grouped chunks.
 - **Multi-agent safety:** do **not** create/remove/modify `git worktree` checkouts (or edit `.worktrees/*`) unless explicitly requested.
@@ -290,33 +291,12 @@
 - Release guardrails: do not change version numbers without operator’s explicit consent; always ask permission before running any npm publish/release step.
 - Beta release guardrail: when using a beta Git tag (for example `vYYYY.M.D-beta.N`), publish npm with a matching beta version suffix (for example `YYYY.M.D-beta.N`) rather than a plain version on `--tag beta`; otherwise the plain version name gets consumed/blocked.
 
-## Plugin Release Fast Path (no core `openclaw` publish)
+## Release Auth
 
-- Release only already-on-npm plugins. Source list is in `docs/reference/RELEASING.md` under "Current npm plugin list".
-- Local npm auth is pre-configured (no 1Password needed); verify with `npm whoami` before publishing.
-- Fast publish loop (local helper script in `/tmp` is fine; keep repo clean):
-  - compare local plugin `version` to `npm view <name> version`
-  - only run `npm publish --access public` when versions differ
-  - skip if package is missing on npm or version already matches.
-- Keep `openclaw` untouched: never run publish from repo root unless explicitly requested.
-- Post-check for each release:
-  - per-plugin: `npm view @openclaw/<name> version --userconfig "$(mktemp)"` should be `2026.2.17`
-  - core guard: `npm view openclaw version --userconfig "$(mktemp)"` should stay at previous version unless explicitly requested.
-
-## @ww-ai-lab/openclaw Package Rename Guardrails
-
-This fork uses `@ww-ai-lab/openclaw` as the npm package name (instead of upstream `openclaw`). After merging upstream changes or modifying dependencies, always verify:
-
-- **Workspace references**: `packages/clawdbot/package.json` and `packages/moltbot/package.json` must reference `"@ww-ai-lab/openclaw": "workspace:*"` (not `"openclaw": "workspace:*"`). If upstream resets these, fix before running `pnpm install`.
-- **pnpm install**: always run `pnpm install --no-frozen-lockfile` after merging upstream, because the lockfile will be stale. Verify it completes without workspace resolution errors.
-- **Dependency versions**: after `pnpm install`, verify that runtime dependencies with subpath exports (e.g. `@mariozechner/pi-ai/oauth`) resolve correctly. Run `openclaw gateway status` and `openclaw --version` as a smoke test before publishing.
-- **Extensions**: extensions under `extensions/` use `"openclaw"` in their imports, which is resolved at runtime via jiti alias. Do NOT rename these to `@ww-ai-lab/openclaw`.
-- **Build**: `pnpm build` may fail on upstream TypeScript errors. Use `node scripts/tsdown-build.mjs` for esbuild bundling (always works), then run remaining build steps manually. Use `npm publish --ignore-scripts` to skip the prepack hook when upstream tsc errors block the full build pipeline.
-- **Build UI**: `pnpm build` does NOT build the Control UI. Always run `pnpm ui:build` after `pnpm build`. Verify: `ls dist/control-ui/index.html`. Without this, the published package will lack the Web management interface.
-- **Clean build**: always `rm -rf dist/` before building. Stale dist chunks can cause schema validation to load incomplete modules (e.g. doctor reports "Unrecognized keys: metaso, qwen" even though source is correct).
-- **Post-install cleanup**: `npm install -g .` creates a `package-lock.json` in the workspace root; remove it (`rm -f package-lock.json`) to avoid conflicts with pnpm.
-- **Publishing**: when the version contains a `-N` suffix (e.g. `2026.3.10-1`), npm treats it as a prerelease; use `--tag latest` to publish it as the latest stable version. Local npm auth is pre-configured; verify with `npm whoami`.
-- **Release branch**: always publish from `main` branch. Merge `develop` into `main` first, verify locally, then push and create the GitHub release.
+- Core `openclaw` publish uses GitHub trusted publishing; do not use `NPM_TOKEN` or the plugin OTP flow for core releases.
+- Separate `@openclaw/*` plugin publishes use a different maintainer-only auth flow.
+- Plugin scope: only publish already-on-npm `@openclaw/*` plugins. Bundled disk-tree-only plugins stay out.
+- Maintainers: private 1Password item names, tmux rules, plugin publish helpers, and local mac signing/notary setup live in the private [maintainer release docs](https://github.com/openclaw/maintainers/blob/main/release/README.md).
 
 ## Changelog Release Notes
 
@@ -333,61 +313,3 @@ This fork uses `@ww-ai-lab/openclaw` as the npm package name (instead of upstrea
   - `node --import tsx scripts/release-check.ts`
   - `pnpm release:check`
   - `pnpm test:install:smoke` or `OPENCLAW_INSTALL_SMOKE_SKIP_NONROOT=1 pnpm test:install:smoke` for non-root smoke path.
-
----
-
-## 合并上游源码保护规则（@ww-ai-lab/openclaw Fork）
-
-> 本节规则仅适用于从 `openclaw/openclaw` 上游仓库合并代码到本 Fork 时。
-> 放在此文件而非根目录 `AGENTS.md` 中，是因为根目录 `AGENTS.md` 会被上游覆盖。
-
-### 包名与工作区引用
-
-- 本 Fork 的 npm 包名为 `@ww-ai-lab/openclaw`（上游为 `openclaw`）。
-- 合并上游后，`packages/clawdbot/package.json` 和 `packages/moltbot/package.json` 中的依赖引用**必须**改回 `"@ww-ai-lab/openclaw": "workspace:*"`（上游会将其重置为 `"openclaw": "workspace:*"`）。
-- `extensions/` 下的 `"openclaw"` 导入**不要**改名，运行时通过 jiti alias 解析。
-
-### 自定义 web_search 供应商保护
-
-本 Fork 新增了 `qwen` 和 `metaso` 两个 web_search 供应商，代码分布在以下文件：
-
-| 文件                                            | 需要保留的内容                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/agents/tools/web-search.ts`                | `SEARCH_PROVIDERS` 数组含 `"metaso"` / `"qwen"`；常量 `DEFAULT_METASO_*` / `DEFAULT_QWEN_*`；类型 `MetasoConfig` / `QwenConfig`；函数 `resolveMetasoConfig` / `resolveMetasoApiKey` / `resolveMetasoBaseUrl` / `resolveMetasoIncludeSummary` / `resolveQwenConfig` / `resolveQwenApiKey` / `resolveQwenBaseUrl` / `resolveQwenModel` / `resolveQwenEnableThinking`；函数 `runMetasoSearch` / `runQwenSearch`；`missingSearchKeyPayload` 中的 metaso/qwen 分支；`resolveSearchProvider` 中的 metaso/qwen 匹配和自动检测；`createWebSearchTool` 中的 description 分支、API key 解析分支、参数传递；`__testing` 导出中的 7 个 metaso/qwen resolve 函数 |
-| `src/config/types.tools.ts`                     | `provider` 类型联合含 `"metaso"` / `"qwen"`；`metaso?: { apiKey, baseUrl, includeSummary }` 和 `qwen?: { apiKey, baseUrl, model, enableThinking }` 配置块                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `src/config/zod-schema.agent-runtime.ts`        | `ToolsWebSearchSchema` 中 `provider` 含 `z.literal("metaso")` / `z.literal("qwen")`；`metaso` 和 `qwen` 子对象 schema                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `src/config/schema.help.ts`                     | metaso/qwen 相关帮助文本                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `src/config/schema.labels.ts`                   | metaso/qwen 标签                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `src/config/config.web-search-provider.test.ts` | metaso/qwen 测试用例                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-
-**合并后必检项**：运行 `grep -c 'metaso\|qwen' src/agents/tools/web-search.ts`，结果应 ≥ 70。若为 0，说明上游覆盖了自定义代码，需要从最近的包含 qwen/metaso 的 git 提交中恢复。
-
-### 配置文件保护机制
-
-- 用户配置 `~/.openclaw/openclaw.json` 使用 Zod `.strict()` 验证。若 gateway 运行的代码**缺少** qwen/metaso schema 定义，任何 `config set` 操作都会**静默剥离** qwen/metaso 配置。
-- 因此必须**先完成代码合并和构建安装，再进行任何配置操作**。
-- **构建验证**：即使源码中 schema 正确，旧 dist 残留 chunk 也可能导致验证走错误路径。构建前必须 `rm -rf dist/`，构建后运行 `openclaw doctor` 确认不再报 "Invalid config" 或 "Unrecognized keys" 错误。
-- 合并后验证命令：`openclaw config get tools.web.search`，确认 `provider`、`qwen`、`metaso` 字段完整。
-- 配置备份位置：`~/.openclaw/openclaw.json.bak*`，包含 qwen 配置的历史备份为 `openclaw.json-bak.022501` 和 `openclaw.json.bak-20260225-pre-agents`。
-
-### 构建与发布
-
-- **构建前必须 `rm -rf dist/`**：旧 dist 残留的 chunk 可能导致 schema 验证走错误的代码路径（已知 bug：`openclaw doctor` 报 "Unrecognized keys: metaso, qwen" 但源码正确）。
-- `pnpm build` 可能因上游 TypeScript 错误失败。使用 `node scripts/tsdown-build.mjs` 进行 esbuild 构建。
-- **构建必须包含 UI**：`pnpm build` **不包含** `ui:build`（只有 `prepack` 才串联两者）。手动构建流程必须是 `pnpm build && pnpm ui:build`。
-- **发布前 UI 门禁**：`ls dist/control-ui/index.html` 必须存在。缺失则 gateway 安装后没有 Web 管理界面。
-- `npm publish` 使用 `--ignore-scripts` 跳过 prepack hook；版本含 `-N` 后缀时加 `--tag latest`。
-- 本地 npm 已认证（`npm whoami` 验证），无需 1Password。
-- 发布前必须本地安装验证：`npm install -g .` → `rm -f package-lock.json` → `openclaw gateway restart` → `openclaw gateway status`（确认 RPC probe ok）→ `openclaw config get tools.web.search`（确认 qwen/metaso 完整）→ `openclaw doctor`（确认无 "Invalid config" 输出）→ `curl http://127.0.0.1:18789/`（确认 UI 返回 200）。
-- 完整流程参见 skill：`openclaw-upstream-merge`（`.agents/skills/openclaw-upstream-merge/SKILL.md`）。
-
-### 版本号规范
-
-- 格式：`YYYY.M.D`（与上游一致），如当日已有相同版本则追加 `-N` 后缀（如 `2026.3.10-1`）。
-- 检查 npmjs 已发布版本：`npm view @ww-ai-lab/openclaw version --userconfig "$(mktemp)"`。
-
-### 依赖版本验证
-
-- 合并后运行 `pnpm install --no-frozen-lockfile`（lockfile 必然过时）。
-- 关键依赖：`@mariozechner/pi-ai` 必须为 `package.json` 中声明的版本（当前 `0.57.1`），低版本缺少 `./oauth` 子路径导出。
-- 验证：`node -e "require.resolve('@mariozechner/pi-ai/oauth')"`。

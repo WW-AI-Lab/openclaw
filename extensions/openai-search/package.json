@@ -1,0 +1,12 @@
+{
+  "name": "@openclaw/openai-search-plugin",
+  "version": "2026.3.14",
+  "private": true,
+  "description": "OpenClaw OpenAI-compatible search plugin (qwen/DashScope)",
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

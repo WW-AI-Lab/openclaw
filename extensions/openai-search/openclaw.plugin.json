@@ -1,0 +1,8 @@
+{
+  "id": "openai-search",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
