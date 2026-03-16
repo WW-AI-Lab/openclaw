@@ -37,6 +37,22 @@ vi.mock("../plugins/web-search-providers.js", () => {
         getCredentialValue: getScoped("kimi"),
       },
       {
+        id: "metaso",
+        envVars: ["METASO_API_KEY"],
+        getCredentialValue: getScoped("metaso"),
+      },
+      {
+        id: "openai-search",
+        envVars: ["DASHSCOPE_API_KEY", "OPENAI_SEARCH_API_KEY"],
+        getCredentialValue: (search?: Record<string, unknown>) => {
+          const openaiSearch = search?.openaiSearch as { apiKey?: unknown } | undefined;
+          if (openaiSearch?.apiKey !== undefined) {
+            return openaiSearch.apiKey;
+          }
+          return (search?.qwen as { apiKey?: unknown } | undefined)?.apiKey;
+        },
+      },
+      {
         id: "perplexity",
         envVars: ["PERPLEXITY_API_KEY", "OPENROUTER_API_KEY"],
         getCredentialValue: getScoped("perplexity"),

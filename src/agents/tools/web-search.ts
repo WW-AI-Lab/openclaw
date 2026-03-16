@@ -72,14 +72,22 @@ function resolveSearchProvider(search?: WebSearchConfig): string {
       ? search.provider.trim().toLowerCase()
       : "";
 
-  if (raw) {
-    const explicit = providers.find((provider) => provider.id === raw);
+  // "qwen" is a deprecated alias for "openai-search"
+  const normalizedRaw = raw === "qwen" ? "openai-search" : raw;
+
+  if (normalizedRaw) {
+    const explicit = providers.find((provider) => provider.id === normalizedRaw);
     if (explicit) {
+      if (raw === "qwen") {
+        logVerbose(
+          'web_search: provider "qwen" is deprecated; mapped to "openai-search". Use provider: "openai-search" with tools.web.search.openaiSearch config.',
+        );
+      }
       return explicit.id;
     }
   }
 
-  if (!raw) {
+  if (!normalizedRaw) {
     for (const provider of providers) {
       if (!hasProviderCredential(provider.id, search)) {
         continue;
