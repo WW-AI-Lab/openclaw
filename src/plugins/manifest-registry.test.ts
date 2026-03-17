@@ -403,6 +403,38 @@ describe("loadPluginManifestRegistry", () => {
     );
   });
 
+  it("accepts speech-style id hints without warning", () => {
+    const dirA = makeTempDir();
+    writeManifest(dirA, { id: "elevenlabs", configSchema: { type: "object" } });
+
+    const registryA = loadRegistry([
+      createPluginCandidate({
+        idHint: "elevenlabs-speech",
+        rootDir: dirA,
+        origin: "bundled",
+      }),
+    ]);
+
+    expect(registryA.diagnostics.some((diag) => diag.message.includes("plugin id mismatch"))).toBe(
+      false,
+    );
+
+    const dirB = makeTempDir();
+    writeManifest(dirB, { id: "microsoft", configSchema: { type: "object" } });
+
+    const registryB = loadRegistry([
+      createPluginCandidate({
+        idHint: "microsoft-speech",
+        rootDir: dirB,
+        origin: "bundled",
+      }),
+    ]);
+
+    expect(registryB.diagnostics.some((diag) => diag.message.includes("plugin id mismatch"))).toBe(
+      false,
+    );
+  });
+
   it("still warns for unrelated id hint mismatches", () => {
     const dir = makeTempDir();
     writeManifest(dir, { id: "openai", configSchema: { type: "object" } });

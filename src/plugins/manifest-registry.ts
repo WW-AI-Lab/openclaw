@@ -134,10 +134,10 @@ function isCompatiblePluginIdHint(idHint: string | undefined, manifestId: string
   if (normalizedHint === manifestId) {
     return true;
   }
+  // Accept any hint of the form "${manifestId}-<suffix>" where suffix is a non-empty
+  // alphanumeric/hyphen word (e.g. -provider, -plugin, -sandbox, -speech, etc.).
   return (
-    normalizedHint === `${manifestId}-provider` ||
-    normalizedHint === `${manifestId}-plugin` ||
-    normalizedHint === `${manifestId}-sandbox`
+    normalizedHint.startsWith(`${manifestId}-`) && normalizedHint.length > manifestId.length + 1
   );
 }
 
