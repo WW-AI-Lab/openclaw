@@ -1,9 +1,10 @@
 ---
-summary: "Web search + fetch tools (Brave, Firecrawl, Gemini, Grok, Kimi, and Perplexity providers)"
+summary: "Web search + fetch tools (Brave, Firecrawl, Gemini, Grok, Kimi, Metaso, OpenAI-Search, and Perplexity providers)"
 read_when:
   - You want to enable web_search or web_fetch
   - You need provider API key setup
   - You want to use Gemini with Google Search grounding
+  - You want to use Metaso or OpenAI-compatible search
 title: "Web Tools"
 ---
 
@@ -11,7 +12,7 @@ title: "Web Tools"
 
 OpenClaw ships two lightweight web tools:
 
-- `web_search` — Search the web using Brave Search API, Firecrawl Search, Gemini with Google Search grounding, Grok, Kimi, or Perplexity Search API.
+- `web_search` — Search the web using Brave Search API, Firecrawl Search, Gemini with Google Search grounding, Grok, Kimi, Metaso, OpenAI-compatible search (DashScope/Qwen), or Perplexity Search API.
 - `web_fetch` — HTTP fetch + readable extraction (HTML → markdown/text).
 
 These are **not** browser automation. For JS-heavy sites or logins, use the
@@ -30,14 +31,16 @@ See [Brave Search setup](/brave-search) and [Perplexity Search setup](/perplexit
 
 ## Choosing a search provider
 
-| Provider                  | Result shape                       | Provider-specific filters                                    | Notes                                                                          | API key                                     |
-| ------------------------- | ---------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------ | ------------------------------------------- |
-| **Brave Search API**      | Structured results with snippets   | `country`, `language`, `ui_lang`, time                       | Supports Brave `llm-context` mode                                              | `BRAVE_API_KEY`                             |
-| **Firecrawl Search**      | Structured results with snippets   | Use `firecrawl_search` for Firecrawl-specific search options | Best for pairing search with Firecrawl scraping/extraction                     | `FIRECRAWL_API_KEY`                         |
-| **Gemini**                | AI-synthesized answers + citations | —                                                            | Uses Google Search grounding                                                   | `GEMINI_API_KEY`                            |
-| **Grok**                  | AI-synthesized answers + citations | —                                                            | Uses xAI web-grounded responses                                                | `XAI_API_KEY`                               |
-| **Kimi**                  | AI-synthesized answers + citations | —                                                            | Uses Moonshot web search                                                       | `KIMI_API_KEY` / `MOONSHOT_API_KEY`         |
-| **Perplexity Search API** | Structured results with snippets   | `country`, `language`, time, `domain_filter`                 | Supports content extraction controls; OpenRouter uses Sonar compatibility path | `PERPLEXITY_API_KEY` / `OPENROUTER_API_KEY` |
+| Provider                  | Result shape                       | Provider-specific filters                                    | Notes                                                                          | API key                                       |
+| ------------------------- | ---------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------ | --------------------------------------------- |
+| **Brave Search API**      | Structured results with snippets   | `country`, `language`, `ui_lang`, time                       | Supports Brave `llm-context` mode                                              | `BRAVE_API_KEY`                               |
+| **Firecrawl Search**      | Structured results with snippets   | Use `firecrawl_search` for Firecrawl-specific search options | Best for pairing search with Firecrawl scraping/extraction                     | `FIRECRAWL_API_KEY`                           |
+| **Gemini**                | AI-synthesized answers + citations | —                                                            | Uses Google Search grounding                                                   | `GEMINI_API_KEY`                              |
+| **Grok**                  | AI-synthesized answers + citations | —                                                            | Uses xAI web-grounded responses                                                | `XAI_API_KEY`                                 |
+| **Kimi**                  | AI-synthesized answers + citations | —                                                            | Uses Moonshot web search                                                       | `KIMI_API_KEY` / `MOONSHOT_API_KEY`           |
+| **Metaso**                | AI-synthesized answers + citations | —                                                            | Chinese web search engine                                                      | `METASO_API_KEY`                              |
+| **OpenAI-Search**         | AI-synthesized answers + citations | —                                                            | OpenAI-compatible search (DashScope, Qwen, etc.)                               | `DASHSCOPE_API_KEY` / `OPENAI_SEARCH_API_KEY` |
+| **Perplexity Search API** | Structured results with snippets   | `country`, `language`, time, `domain_filter`                 | Supports content extraction controls; OpenRouter uses Sonar compatibility path | `PERPLEXITY_API_KEY` / `OPENROUTER_API_KEY`   |
 
 ### Auto-detection
 
@@ -47,8 +50,10 @@ The table above is alphabetical. If no `provider` is explicitly set, runtime aut
 2. **Gemini** — `GEMINI_API_KEY` env var or `tools.web.search.gemini.apiKey` config
 3. **Grok** — `XAI_API_KEY` env var or `tools.web.search.grok.apiKey` config
 4. **Kimi** — `KIMI_API_KEY` / `MOONSHOT_API_KEY` env var or `tools.web.search.kimi.apiKey` config
-5. **Perplexity** — `PERPLEXITY_API_KEY`, `OPENROUTER_API_KEY`, or `tools.web.search.perplexity.apiKey` config
-6. **Firecrawl** — `FIRECRAWL_API_KEY` env var or `tools.web.search.firecrawl.apiKey` config
+5. **Metaso** — `METASO_API_KEY` env var or `tools.web.search.metaso.apiKey` config
+6. **OpenAI-Search** — `DASHSCOPE_API_KEY`, `OPENAI_SEARCH_API_KEY` env var, or `tools.web.search.openaiSearch.apiKey` config
+7. **Perplexity** — `PERPLEXITY_API_KEY`, `OPENROUTER_API_KEY`, or `tools.web.search.perplexity.apiKey` config
+8. **Firecrawl** — `FIRECRAWL_API_KEY` env var or `tools.web.search.firecrawl.apiKey` config
 
 If no keys are found, it falls back to Brave (you'll get a missing-key error prompting you to configure one).
 
@@ -93,6 +98,8 @@ See [Perplexity Search API Docs](https://docs.perplexity.ai/guides/search-quicks
 - Gemini: `tools.web.search.gemini.apiKey`
 - Grok: `tools.web.search.grok.apiKey`
 - Kimi: `tools.web.search.kimi.apiKey`
+- Metaso: `tools.web.search.metaso.apiKey`
+- OpenAI-Search: `tools.web.search.openaiSearch.apiKey`
 - Perplexity: `tools.web.search.perplexity.apiKey`
 
 All of these fields also support SecretRef objects.
@@ -104,6 +111,8 @@ All of these fields also support SecretRef objects.
 - Gemini: `GEMINI_API_KEY`
 - Grok: `XAI_API_KEY`
 - Kimi: `KIMI_API_KEY` or `MOONSHOT_API_KEY`
+- Metaso: `METASO_API_KEY`
+- OpenAI-Search: `DASHSCOPE_API_KEY` or `OPENAI_SEARCH_API_KEY`
 - Perplexity: `PERPLEXITY_API_KEY` or `OPENROUTER_API_KEY`
 
 For a gateway install, put these in `~/.openclaw/.env` (or your service environment). See [Env vars](/help/faq#how-does-openclaw-load-environment-variables).
@@ -215,6 +224,139 @@ In this mode, `country` and `language` / `search_lang` still work, but `ui_lang`
 }
 ```
 
+## Using Metaso (Chinese web search)
+
+Metaso is a Chinese web search engine that returns AI-synthesized answers with citations.
+
+### Getting a Metaso API key
+
+1. Go to [Metaso API](https://metaso.cn/) and create an account
+2. Generate an API key from the dashboard
+3. Set `METASO_API_KEY` in the Gateway environment, or configure `tools.web.search.metaso.apiKey`
+
+### Setting up Metaso search
+
+```json5
+{
+  tools: {
+    web: {
+      search: {
+        provider: "metaso",
+        metaso: {
+          apiKey: "mk-YOUR_API_KEY", // optional if METASO_API_KEY is set // pragma: allowlist secret
+          baseUrl: "https://metaso.cn", // optional, this is the default
+          includeSummary: true, // include AI summary in results (default: true)
+        },
+      },
+    },
+  },
+}
+```
+
+**Environment alternative:** set `METASO_API_KEY` in the Gateway environment.
+For a gateway install, put it in `~/.openclaw/.env`.
+
+### Notes
+
+- Metaso does not support `country`, `language`, `freshness`, or date range filters.
+- `includeSummary` defaults to `true`; set to `false` to return only raw search results without AI summary.
+
+## Using OpenAI-Search (OpenAI-compatible search)
+
+OpenAI-Search is a generic OpenAI-compatible search provider that works with any API
+supporting `/chat/completions` with a search trigger parameter.
+It is commonly used with DashScope (Alibaba Cloud) and Qwen models, but can work with
+any OpenAI-compatible endpoint that supports a search toggle.
+
+### Getting an API key
+
+For DashScope (Qwen):
+
+1. Go to [DashScope Console](https://dashscope.console.aliyun.com/) and create an account
+2. Generate an API key from the API Keys section
+3. Set `DASHSCOPE_API_KEY` in the Gateway environment, or configure `tools.web.search.openaiSearch.apiKey`
+
+For other OpenAI-compatible providers, set `OPENAI_SEARCH_API_KEY` or configure the key directly.
+
+### Setting up OpenAI-Search
+
+```json5
+{
+  tools: {
+    web: {
+      search: {
+        provider: "openai-search",
+        openaiSearch: {
+          apiKey: "sk-YOUR_API_KEY", // optional if DASHSCOPE_API_KEY or OPENAI_SEARCH_API_KEY is set // pragma: allowlist secret
+          baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", // optional, this is the default
+          model: "qwen-plus", // optional, defaults to "qwen-plus"
+          enableSearch: true, // send the search trigger parameter (default: true)
+          enableThinking: false, // enable thinking/reasoning mode (default: false)
+          searchParam: "enable_search", // search trigger parameter name (default: "enable_search")
+          toolName: "openai-search", // display name for the tool (default: "openai-search")
+        },
+      },
+    },
+  },
+}
+```
+
+**Environment alternative:** set `DASHSCOPE_API_KEY` or `OPENAI_SEARCH_API_KEY` in the Gateway environment.
+For a gateway install, put it in `~/.openclaw/.env`.
+
+<Note>
+The config key for the provider-specific block is `openaiSearch` (camelCase), not `openai-search`.
+The `provider` value remains `"openai-search"` (kebab-case).
+</Note>
+
+### Deprecated `qwen` config
+
+The `qwen` config block is deprecated and will be removed in a future release.
+If both `openaiSearch` and `qwen` are present, `openaiSearch` takes precedence.
+Migrate existing `qwen` config to `openaiSearch`:
+
+```json5
+// Before (deprecated)
+{
+  tools: {
+    web: {
+      search: {
+        provider: "openai-search",
+        qwen: {
+          apiKey: "sk-...",
+          baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+          model: "qwen-plus",
+        },
+      },
+    },
+  },
+}
+
+// After (recommended)
+{
+  tools: {
+    web: {
+      search: {
+        provider: "openai-search",
+        openaiSearch: {
+          apiKey: "sk-...",
+          baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+          model: "qwen-plus",
+        },
+      },
+    },
+  },
+}
+```
+
+### Notes
+
+- OpenAI-Search does not support `country`, `language`, `freshness`, or date range filters.
+- The `searchParam` field controls which request body parameter triggers web search. Defaults to `"enable_search"` (used by DashScope/Qwen).
+- The `enableSearch` flag controls whether the search trigger parameter is sent at all. Defaults to `true`.
+- `enableThinking` enables the model's reasoning/thinking mode if supported. Defaults to `false`.
+- The `toolName` field sets the display name shown in agent tool listings. Defaults to `"openai-search"`.
+
 ## Using Gemini (Google Search grounding)
 
 Gemini models support built-in [Google Search grounding](https://ai.google.dev/gemini-api/docs/grounding),
@@ -271,6 +413,8 @@ Search the web using your configured provider.
   - **Gemini**: `GEMINI_API_KEY` or `tools.web.search.gemini.apiKey`
   - **Grok**: `XAI_API_KEY` or `tools.web.search.grok.apiKey`
   - **Kimi**: `KIMI_API_KEY`, `MOONSHOT_API_KEY`, or `tools.web.search.kimi.apiKey`
+  - **Metaso**: `METASO_API_KEY` or `tools.web.search.metaso.apiKey`
+  - **OpenAI-Search**: `DASHSCOPE_API_KEY`, `OPENAI_SEARCH_API_KEY`, or `tools.web.search.openaiSearch.apiKey`
   - **Perplexity**: `PERPLEXITY_API_KEY`, `OPENROUTER_API_KEY`, or `tools.web.search.perplexity.apiKey`
 - All provider key fields above support SecretRef objects.
 
