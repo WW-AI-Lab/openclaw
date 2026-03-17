@@ -344,9 +344,42 @@ describe("setupSearch", () => {
     expect(result.tools?.web?.search?.apiKey).toBe("BSA-plain");
   });
 
-  it("exports all 6 providers in SEARCH_PROVIDER_OPTIONS", () => {
-    expect(SEARCH_PROVIDER_OPTIONS).toHaveLength(6);
+  it("exports all 8 providers in SEARCH_PROVIDER_OPTIONS", () => {
+    expect(SEARCH_PROVIDER_OPTIONS).toHaveLength(8);
     const values = SEARCH_PROVIDER_OPTIONS.map((e) => e.value);
-    expect(values).toEqual(["brave", "gemini", "grok", "kimi", "perplexity", "firecrawl"]);
+    expect(values).toEqual([
+      "brave",
+      "gemini",
+      "grok",
+      "kimi",
+      "metaso",
+      "openai-search",
+      "perplexity",
+      "firecrawl",
+    ]);
+  });
+
+  it("sets provider and key for metaso", async () => {
+    const cfg: OpenClawConfig = {};
+    const { prompter } = createPrompter({
+      selectValue: "metaso",
+      textValue: "mk-test-key",
+    });
+    const result = await setupSearch(cfg, runtime, prompter);
+    expect(result.tools?.web?.search?.provider).toBe("metaso");
+    expect(result.tools?.web?.search?.enabled).toBe(true);
+    expect(result.tools?.web?.search?.metaso?.apiKey).toBe("mk-test-key");
+  });
+
+  it("sets provider and key for openai-search", async () => {
+    const cfg: OpenClawConfig = {};
+    const { prompter } = createPrompter({
+      selectValue: "openai-search",
+      textValue: "sk-dashscope-test",
+    });
+    const result = await setupSearch(cfg, runtime, prompter);
+    expect(result.tools?.web?.search?.provider).toBe("openai-search");
+    expect(result.tools?.web?.search?.enabled).toBe(true);
+    expect(result.tools?.web?.search?.openaiSearch?.apiKey).toBe("sk-dashscope-test");
   });
 });

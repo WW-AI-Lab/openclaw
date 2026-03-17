@@ -90,6 +90,38 @@ const BUNDLED_WEB_SEARCH_PROVIDER_REGISTRY = [
     }),
   },
   {
+    pluginId: "metaso",
+    provider: createPluginBackedWebSearchProvider({
+      id: "metaso",
+      label: "Metaso",
+      hint: "Chinese web search · AI-synthesized answers",
+      envVars: ["METASO_API_KEY"],
+      placeholder: "mk-...",
+      signupUrl: "https://metaso.cn/",
+      docsUrl: "https://docs.openclaw.ai/tools/web",
+      autoDetectOrder: 45,
+      getCredentialValue: (searchConfig) => getScopedCredentialValue(searchConfig, "metaso"),
+      setCredentialValue: (searchConfigTarget, value) =>
+        setScopedCredentialValue(searchConfigTarget, "metaso", value),
+    }),
+  },
+  {
+    pluginId: "openai-search",
+    provider: createPluginBackedWebSearchProvider({
+      id: "openai-search",
+      label: "OpenAI-Search (DashScope/Qwen)",
+      hint: "OpenAI-compatible search · DashScope/Qwen",
+      envVars: ["DASHSCOPE_API_KEY", "OPENAI_SEARCH_API_KEY"],
+      placeholder: "sk-...",
+      signupUrl: "https://dashscope.console.aliyun.com/",
+      docsUrl: "https://docs.openclaw.ai/tools/web",
+      autoDetectOrder: 48,
+      getCredentialValue: (searchConfig) => getScopedCredentialValue(searchConfig, "openaiSearch"),
+      setCredentialValue: (searchConfigTarget, value) =>
+        setScopedCredentialValue(searchConfigTarget, "openaiSearch", value),
+    }),
+  },
+  {
     pluginId: "perplexity",
     provider: createPluginBackedWebSearchProvider({
       id: "perplexity",
