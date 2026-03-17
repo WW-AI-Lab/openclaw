@@ -1,0 +1,98 @@
+stages:
+  - php-build-master
+  - java-build-master
+  - python-build-master
+  - php-build-other
+  - java-build-other
+  - python-build-other
+php-build-master:
+  stage: php-build-master
+  script:
+    - git clone -b ops http://${CI_USERNAME}:${CI_PASSWORD}@git.yafex.cn/${CI_PROJECT_PATH}.git .dockerfile
+    - git clone -b master http://${CI_USERNAME}:${CI_PASSWORD}@git.yafex.cn/config/${CI_PROJECT_PATH}.git .conf
+    - cp -f .dockerfile/Dockerfile ./
+    - cp -rf .conf/include/of/* ./
+    - docker build -t ${CI_REGISTRY}prod/${CI_PROJECT_TITLE}:${CI_COMMIT_SHORT_SHA} .
+    - docker login registry-harbor.yafex.cn -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD}
+    - docker push ${CI_REGISTRY}prod/${CI_PROJECT_TITLE}:${CI_COMMIT_SHORT_SHA}
+    - rm -rf .dockerfile
+    - rm -f Dockerfile
+    - rm -rf .conf
+  variables:
+    GIT_DEPTH: "0"
+  rules:
+    - if: $LANGUAGE == 'php' && $CI_COMMIT_REF_NAME == 'master' && $CI_PIPELINE_SOURCE == 'trigger'
+      when: always
+php-build-other:
+  stage: php-build-other
+  script:
+    - git clone -b ops http://${CI_USERNAME}:${CI_PASSWORD}@git.yafex.cn/${CI_PROJECT_PATH}.git .dockerfile
+    - cp -f .dockerfile/Dockerfile ./
+    - docker build -t ${CI_REGISTRY}${DEPLOY_NAMESPACE}/${CI_PROJECT_TITLE}:${CI_COMMIT_SHORT_SHA} .
+    - docker login registry-harbor.yafex.cn -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD}
+    - docker push ${CI_REGISTRY}${DEPLOY_NAMESPACE}/${CI_PROJECT_TITLE}:${CI_COMMIT_SHORT_SHA}
+    - rm -rf .dockerfile
+    - rm -f Dockerfile
+  variables:
+    GIT_DEPTH: "0"
+  rules:
+    - if: $LANGUAGE == 'php' && $CI_COMMIT_REF_NAME != 'master' && $DEPLOY_NAMESPACE != '' && $CI_PIPELINE_SOURCE == 'trigger'
+      when: always
+python-build-master:
+  stage: python-build-master
+  script:
+    - git clone -b ops http://${CI_USERNAME}:${CI_PASSWORD}@git.yafex.cn/${CI_PROJECT_PATH}.git .dockerfile
+    - cp -f .dockerfile/Dockerfile ./
+    - docker build -t ${CI_REGISTRY}${DEPLOY_NAMESPACE}/${CI_PROJECT_TITLE}:${CI_COMMIT_SHORT_SHA} .
+    - docker login registry-harbor.yafex.cn -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD}
+    - docker push ${CI_REGISTRY}${DEPLOY_NAMESPACE}/${CI_PROJECT_TITLE}:${CI_COMMIT_SHORT_SHA}
+    - rm -rf .dockerfile
+    - rm -f Dockerfile
+  variables:
+    GIT_DEPTH: "0"
+  rules:
+    - if: $LANGUAGE == 'python' && $CI_COMMIT_REF_NAME == 'master' && $DEPLOY_NAMESPACE != '' && $CI_PIPELINE_SOURCE == 'trigger'
+      when: always
+python-build-other:
+  stage: python-build-other
+  script:
+    - git clone -b ops http://${CI_USERNAME}:${CI_PASSWORD}@git.yafex.cn/${CI_PROJECT_PATH}.git .dockerfile
+    - cp -f .dockerfile/Dockerfile ./
+    - docker build -t ${CI_REGISTRY}${DEPLOY_NAMESPACE}/${CI_PROJECT_TITLE}:${CI_COMMIT_SHORT_SHA} .
+    - docker login registry-harbor.yafex.cn -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD}
+    - docker push ${CI_REGISTRY}${DEPLOY_NAMESPACE}/${CI_PROJECT_TITLE}:${CI_COMMIT_SHORT_SHA}
+    - rm -rf .dockerfile
+    - rm -f Dockerfile
+  variables:
+    GIT_DEPTH: "0"
+  rules:
+    - if: $LANGUAGE == 'python' && $CI_COMMIT_REF_NAME != 'master' && $DEPLOY_NAMESPACE != '' && $CI_PIPELINE_SOURCE == 'trigger'
+      when: always
+java-build-master:
+  stage: java-build-master
+  script:
+    - sed -i "s#^xxl.job.executor.appname=.*#xxl.job.executor.appname=${DEPLOY_NAME}#g" src/main/resources/application.properties
+    - echo "spring.profiles.active=test" >>src/main/resources/application.properties
+    - /usr/local/apache-maven-3.3.9/bin/mvn clean install -Dmaven.test.skip=true
+    - docker build -t ${CI_REGISTRY}${DEPLOY_NAMESPACE}/${DEPLOY_NAME}:${CI_COMMIT_SHORT_SHA} .
+    - docker login registry-harbor.yafex.cn -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD}
+    - docker push ${CI_REGISTRY}${DEPLOY_NAMESPACE}/${JOB_NAME}:${CI_COMMIT_SHORT_SHA}
+  variables:
+    GIT_DEPTH: "0"
+  rules:
+    - if: $LANGUAGE == 'java' && $DEPLOY_NAME != "" && $CI_COMMIT_REF_NAME == 'master' && $DEPLOY_NAMESPACE != '' && $CI_PIPELINE_SOURCE == 'trigger'
+      when: always
+java-build-other:
+  stage: java-build-other
+  script:
+    - sed -i "s#^xxl.job.executor.appname=.*#xxl.job.executor.appname=${DEPLOY_NAME}#g" src/main/resources/application.properties
+    - echo "spring.profiles.active=test" >>src/main/resources/application.properties
+    - /usr/local/apache-maven-3.3.9/bin/mvn clean install -Dmaven.test.skip=true
+    - docker build -t ${CI_REGISTRY}${DEPLOY_NAMESPACE}/${JOB_NAME}:${CI_COMMIT_SHORT_SHA} .
+    - docker login registry-harbor.yafex.cn -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD}
+    - docker push ${CI_REGISTRY}${DEPLOY_NAMESPACE}/${JOB_NAME}:${CI_COMMIT_SHORT_SHA}
+  variables:
+    GIT_DEPTH: "0"
+  rules:
+    - if: $LANGUAGE == 'java' && $DEPLOY_NAME != "" && $CI_COMMIT_REF_NAME != 'master' && $DEPLOY_NAMESPACE != '' && $CI_PIPELINE_SOURCE == 'trigger'
+      when: always
