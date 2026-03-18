@@ -12,6 +12,8 @@ import {
 } from "./bundled-compat.js";
 import { normalizePluginsConfig, resolveEffectiveEnableState } from "./config-state.js";
 import type { PluginLoadOptions } from "./loader.js";
+import type { PluginWebSearchProviderRegistration } from "./registry.js";
+import { getActivePluginRegistry } from "./runtime.js";
 import type { PluginWebSearchProviderEntry } from "./types.js";
 
 const BUNDLED_WEB_SEARCH_ALLOWLIST_COMPAT_PLUGIN_IDS = [
@@ -170,6 +172,37 @@ export function resolvePluginWebSearchProviders(params: {
         rootConfig: config,
       }).enabled,
   )
+    .map((entry) => ({
+      ...entry.provider,
+      pluginId: entry.pluginId,
+    }))
+    .toSorted((a, b) => {
+      const aOrder = a.autoDetectOrder ?? Number.MAX_SAFE_INTEGER;
+      const bOrder = b.autoDetectOrder ?? Number.MAX_SAFE_INTEGER;
+      if (aOrder !== bOrder) {
+        return aOrder - bOrder;
+      }
+      return a.id.localeCompare(b.id);
+    });
+}
+
+export function resolveRuntimeWebSearchProviders(params: {
+  config?: PluginLoadOptions["config"];
+  workspaceDir?: string;
+  env?: PluginLoadOptions["env"];
+  bundledAllowlistCompat?: boolean;
+}): PluginWebSearchProviderEntry[] {
+  const runtimeProviders = getActivePluginRegistry()?.webSearchProviders ?? [];
+  if (runtimeProviders.length > 0) {
+    return mapRuntimeEntries(runtimeProviders);
+  }
+  return resolvePluginWebSearchProviders(params);
+}
+
+function mapRuntimeEntries(
+  entries: PluginWebSearchProviderRegistration[],
+): PluginWebSearchProviderEntry[] {
+  return entries
     .map((entry) => ({
       ...entry.provider,
       pluginId: entry.pluginId,
