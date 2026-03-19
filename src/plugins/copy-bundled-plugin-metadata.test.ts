@@ -54,6 +54,10 @@ describe("copyBundledPluginMetadata", () => {
       name: "@openclaw/acpx",
       openclaw: { extensions: ["./index.ts"] },
     });
+    // Simulate the build having produced the compiled entry file
+    const distPluginDir = path.join(repoRoot, "dist", "extensions", "acpx");
+    fs.mkdirSync(distPluginDir, { recursive: true });
+    fs.writeFileSync(path.join(distPluginDir, "index.js"), "export default {}\n", "utf8");
 
     copyBundledPluginMetadata({ repoRoot });
 
@@ -114,11 +118,12 @@ describe("copyBundledPluginMetadata", () => {
       name: "@openclaw/tlon",
       openclaw: { extensions: ["./index.ts"] },
     });
+    // Simulate the build having produced the compiled entry file
+    const distPluginDir = path.join(repoRoot, "dist", "extensions", "tlon");
+    fs.mkdirSync(distPluginDir, { recursive: true });
+    fs.writeFileSync(path.join(distPluginDir, "index.js"), "export default {}\n", "utf8");
     const staleNodeModulesSkillDir = path.join(
-      repoRoot,
-      "dist",
-      "extensions",
-      "tlon",
+      distPluginDir,
       "node_modules",
       "@tloncorp",
       "tlon-skill",
@@ -168,6 +173,10 @@ describe("copyBundledPluginMetadata", () => {
       name: "@openclaw/tlon",
       openclaw: { extensions: ["./index.ts"] },
     });
+    // Simulate the build having produced the compiled entry file
+    const distPluginDir = path.join(repoRoot, "dist", "extensions", "tlon");
+    fs.mkdirSync(distPluginDir, { recursive: true });
+    fs.writeFileSync(path.join(distPluginDir, "index.js"), "export default {}\n", "utf8");
 
     copyBundledPluginMetadata({ repoRoot });
 
@@ -208,18 +217,19 @@ describe("copyBundledPluginMetadata", () => {
       name: "@openclaw/tlon",
       openclaw: { extensions: ["./index.ts"] },
     });
+    // Simulate the build having produced the compiled entry file
+    const distPluginDir = path.join(repoRoot, "dist", "extensions", "tlon");
+    fs.mkdirSync(distPluginDir, { recursive: true });
+    fs.writeFileSync(path.join(distPluginDir, "index.js"), "export default {}\n", "utf8");
     const staleBundledSkillDir = path.join(
-      repoRoot,
-      "dist",
-      "extensions",
-      "tlon",
+      distPluginDir,
       "bundled-skills",
       "@tloncorp",
       "tlon-skill",
     );
     fs.mkdirSync(staleBundledSkillDir, { recursive: true });
     fs.writeFileSync(path.join(staleBundledSkillDir, "SKILL.md"), "# stale\n", "utf8");
-    const staleNodeModulesDir = path.join(repoRoot, "dist", "extensions", "tlon", "node_modules");
+    const staleNodeModulesDir = path.join(distPluginDir, "node_modules");
     fs.mkdirSync(staleNodeModulesDir, { recursive: true });
 
     copyBundledPluginMetadata({ repoRoot });
@@ -251,6 +261,10 @@ describe("copyBundledPluginMetadata", () => {
       name: "@openclaw/diffs",
       openclaw: { extensions: ["./index.ts"] },
     });
+    // Simulate the build having produced the compiled entry file
+    const distPluginDir = path.join(repoRoot, "dist", "extensions", "diffs");
+    fs.mkdirSync(distPluginDir, { recursive: true });
+    fs.writeFileSync(path.join(distPluginDir, "index.js"), "export default {}\n", "utf8");
 
     const realCpSync = fs.cpSync.bind(fs);
     let attempts = 0;

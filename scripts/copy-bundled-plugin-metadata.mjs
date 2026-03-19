@@ -222,6 +222,26 @@ export function copyBundledPluginMetadata(params = {}) {
     }
 
     writeTextFileIfChanged(distPackageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
+
+    // Remove dist extension dirs where none of the declared entry files exist.
+    // The build only compiles extensions with stageRuntimeDependencies; skeleton
+    // dirs with metadata but no code cause "escapes package directory" ENOENT
+    // errors at runtime when discovery tries to open the missing entry files.
+    const declaredEntries = [
+      ...(Array.isArray(packageJson.openclaw?.extensions) ? packageJson.openclaw.extensions : []),
+      ...(typeof packageJson.openclaw?.setupEntry === "string"
+        ? [packageJson.openclaw.setupEntry]
+        : []),
+    ].filter((e) => typeof e === "string" && e.trim().length > 0);
+    if (declaredEntries.length > 0) {
+      const hasAnyEntry = declaredEntries.some((entry) =>
+        fs.existsSync(path.join(distPluginDir, entry)),
+      );
+      if (!hasAnyEntry) {
+        removePathIfExists(distPluginDir);
+        continue;
+      }
+    }
   }
 
   if (!fs.existsSync(distExtensionsRoot)) {
