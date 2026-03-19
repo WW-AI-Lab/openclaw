@@ -444,6 +444,14 @@ export type MemorySearchConfig = {
   };
 };
 
+type WebSearchLegacyProviderConfig = {
+  apiKey?: SecretInput;
+  baseUrl?: string;
+  model?: string;
+  mode?: string;
+  inlineCitations?: boolean;
+};
+
 export type ToolsConfig = {
   /** Base tool profile applied before allow/deny lists. */
   profile?: ToolProfileId;
@@ -457,18 +465,9 @@ export type ToolsConfig = {
     search?: {
       /** Enable web search tool (default: true when API key is present). */
       enabled?: boolean;
-      /** Search provider ("brave", "firecrawl", "gemini", "grok", "kimi", "metaso", "openai-search", "perplexity", or "qwen" (deprecated alias for openai-search)). */
-      provider?:
-        | "brave"
-        | "firecrawl"
-        | "gemini"
-        | "grok"
-        | "kimi"
-        | "metaso"
-        | "openai-search"
-        | "perplexity"
-        | "qwen";
-      /** Brave Search API key (optional; defaults to BRAVE_API_KEY env var). */
+      /** Search provider id. */
+      provider?: string;
+      /** Shared API key slot used by providers that do not need nested config. */
       apiKey?: SecretInput;
       /** Default search results count (1-10). */
       maxResults?: number;
@@ -476,93 +475,19 @@ export type ToolsConfig = {
       timeoutSeconds?: number;
       /** Cache TTL in minutes for search results. */
       cacheTtlMinutes?: number;
-      /** Brave-specific configuration (used when provider="brave"). */
-      brave?: {
-        /** Brave Search mode: "web" (standard results) or "llm-context" (pre-extracted page content). Default: "web". */
-        mode?: "web" | "llm-context";
-      };
-      /** Gemini-specific configuration (used when provider="gemini"). */
-      gemini?: {
-        /** Gemini API key (defaults to GEMINI_API_KEY env var). */
-        apiKey?: SecretInput;
-        /** Model to use for grounded search (defaults to "gemini-2.5-flash"). */
-        model?: string;
-      };
-      /** Firecrawl-specific configuration (used when provider="firecrawl"). */
-      firecrawl?: {
-        /** Firecrawl API key (defaults to FIRECRAWL_API_KEY env var). */
-        apiKey?: SecretInput;
-        /** Base URL for API requests (defaults to "https://api.firecrawl.dev"). */
-        baseUrl?: string;
-      };
-      /** Grok-specific configuration (used when provider="grok"). */
-      grok?: {
-        /** API key for xAI (defaults to XAI_API_KEY env var). */
-        apiKey?: SecretInput;
-        /** Model to use (defaults to "grok-4-1-fast"). */
-        model?: string;
-        /** Include inline citations in response text as markdown links (default: false). */
-        inlineCitations?: boolean;
-      };
-      /** Kimi-specific configuration (used when provider="kimi"). */
-      kimi?: {
-        /** Moonshot/Kimi API key (defaults to KIMI_API_KEY or MOONSHOT_API_KEY env var). */
-        apiKey?: SecretInput;
-        /** Base URL for API requests (defaults to "https://api.moonshot.ai/v1"). */
-        baseUrl?: string;
-        /** Model to use (defaults to "moonshot-v1-128k"). */
-        model?: string;
-      };
-      /** Metaso-specific configuration (used when provider="metaso"). */
-      metaso?: {
-        /** Metaso API key (defaults to METASO_API_KEY env var). */
-        apiKey?: SecretInput;
-        /** Base URL for API requests (defaults to "https://metaso.cn"). */
-        baseUrl?: string;
-        /** Include summary in results (default: true). */
-        includeSummary?: boolean;
-      };
-      /**
-       * Generic OpenAI-compatible search provider configuration.
-       * Works with any API that supports /chat/completions with a search trigger parameter.
-       */
-      openaiSearch?: {
-        /** API key (fallback: DASHSCOPE_API_KEY or OPENAI_SEARCH_API_KEY env var). */
-        apiKey?: SecretInput;
-        /** Base URL (default: "https://dashscope.aliyuncs.com/compatible-mode/v1"). */
-        baseUrl?: string;
-        /** Model name (default: "qwen-plus"). */
-        model?: string;
-        /** Display name for the tool (default: "openai-search"). */
-        toolName?: string;
-        /** Whether to send the search trigger parameter (default: true). */
-        enableSearch?: boolean;
-        /** Enable thinking mode (default: false). */
-        enableThinking?: boolean;
-        /** Search trigger parameter name in the request body (default: "enable_search"). */
-        searchParam?: string;
-      };
-      /** @deprecated Use openaiSearch instead. Qwen configuration is read as a fallback for openaiSearch. */
-      qwen?: {
-        /** DashScope API key (defaults to DASHSCOPE_API_KEY env var). */
-        apiKey?: SecretInput;
-        /** Base URL for DashScope-compatible API requests. */
-        baseUrl?: string;
-        /** Model to use (defaults to "qwen-plus"). */
-        model?: string;
-        /** Enable thinking mode (default: false). */
-        enableThinking?: boolean;
-      };
-      /** Perplexity-specific configuration (used when provider="perplexity"). */
-      perplexity?: {
-        /** API key for Perplexity (defaults to PERPLEXITY_API_KEY env var). */
-        apiKey?: SecretInput;
-        /** @deprecated Legacy Sonar/OpenRouter field. Ignored by Search API. */
-        baseUrl?: string;
-        /** @deprecated Legacy Sonar/OpenRouter field. Ignored by Search API. */
-        model?: string;
-      };
-    };
+      /** @deprecated Legacy Brave scoped config. */
+      brave?: WebSearchLegacyProviderConfig;
+      /** @deprecated Legacy Firecrawl scoped config. */
+      firecrawl?: WebSearchLegacyProviderConfig;
+      /** @deprecated Legacy Gemini scoped config. */
+      gemini?: WebSearchLegacyProviderConfig;
+      /** @deprecated Legacy Grok scoped config. */
+      grok?: WebSearchLegacyProviderConfig;
+      /** @deprecated Legacy Kimi scoped config. */
+      kimi?: WebSearchLegacyProviderConfig;
+      /** @deprecated Legacy Perplexity scoped config. */
+      perplexity?: WebSearchLegacyProviderConfig;
+    } & Record<string, unknown>;
     fetch?: {
       /** Enable web fetch tool (default: true). */
       enabled?: boolean;

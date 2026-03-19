@@ -64,6 +64,7 @@ describe("plugin-sdk exports", () => {
 
   it("keeps the root runtime surface intentionally small", () => {
     expect(typeof sdk.emptyPluginConfigSchema).toBe("function");
+    expect(typeof sdk.delegateCompactionToRuntime).toBe("function");
     expect(Object.prototype.hasOwnProperty.call(sdk, "resolveControlCommandGate")).toBe(false);
     expect(Object.prototype.hasOwnProperty.call(sdk, "buildAgentSessionKey")).toBe(false);
     expect(Object.prototype.hasOwnProperty.call(sdk, "isDangerousNameMatchingEnabled")).toBe(false);
@@ -94,6 +95,11 @@ await build(${JSON.stringify({
       await execFileAsync(process.execPath, [buildScriptPath], {
         cwd: process.cwd(),
       });
+      await fs.symlink(
+        path.join(process.cwd(), "node_modules"),
+        path.join(outDir, "node_modules"),
+        "dir",
+      );
 
       for (const entry of pluginSdkEntrypoints) {
         const module = await import(pathToFileURL(path.join(outDir, `${entry}.js`)).href);
@@ -106,6 +112,12 @@ await build(${JSON.stringify({
 
       await fs.mkdir(path.join(packageDir, "dist"), { recursive: true });
       await fs.symlink(outDir, path.join(packageDir, "dist", "plugin-sdk"), "dir");
+      // Mirror the installed package layout so subpaths can resolve root deps.
+      await fs.symlink(
+        path.join(process.cwd(), "node_modules"),
+        path.join(packageDir, "node_modules"),
+        "dir",
+      );
       await fs.writeFile(
         path.join(packageDir, "package.json"),
         JSON.stringify(
