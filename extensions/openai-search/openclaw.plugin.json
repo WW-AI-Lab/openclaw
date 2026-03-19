@@ -1,8 +1,68 @@
 {
   "id": "openai-search",
+  "uiHints": {
+    "webSearch.apiKey": {
+      "label": "OpenAI-Compatible Search API Key",
+      "help": "DashScope or another OpenAI-compatible web search API key.",
+      "sensitive": true,
+      "placeholder": "sk-..."
+    },
+    "webSearch.baseUrl": {
+      "label": "Base URL",
+      "help": "OpenAI-compatible chat completions base URL override."
+    },
+    "webSearch.model": {
+      "label": "Model",
+      "help": "Model override for the search-capable chat completions API."
+    },
+    "webSearch.toolName": {
+      "label": "Display Name",
+      "help": "Human-friendly name shown in tool descriptions and errors."
+    },
+    "webSearch.enableSearch": {
+      "label": "Enable Search",
+      "help": "Send the provider's built-in web-search trigger parameter."
+    },
+    "webSearch.enableThinking": {
+      "label": "Enable Thinking",
+      "help": "Enable provider-specific reasoning mode when supported."
+    },
+    "webSearch.searchParam": {
+      "label": "Search Parameter",
+      "help": "Request body field used to trigger provider-side web search."
+    }
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
-    "properties": {}
+    "properties": {
+      "webSearch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "apiKey": {
+            "type": ["string", "object"]
+          },
+          "baseUrl": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          },
+          "enableSearch": {
+            "type": "boolean"
+          },
+          "enableThinking": {
+            "type": "boolean"
+          },
+          "searchParam": {
+            "type": "string"
+          }
+        }
+      }
+    }
   }
 }

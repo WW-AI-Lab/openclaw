@@ -1,8 +1,40 @@
 {
   "id": "metaso",
+  "uiHints": {
+    "webSearch.apiKey": {
+      "label": "Metaso API Key",
+      "help": "Metaso API key for Chinese web search.",
+      "sensitive": true,
+      "placeholder": "sk-..."
+    },
+    "webSearch.baseUrl": {
+      "label": "Metaso Base URL",
+      "help": "Optional Metaso API endpoint override."
+    },
+    "webSearch.includeSummary": {
+      "label": "Include AI Summary",
+      "help": "Include Metaso's AI-generated summary when available."
+    }
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
-    "properties": {}
+    "properties": {
+      "webSearch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "apiKey": {
+            "type": ["string", "object"]
+          },
+          "baseUrl": {
+            "type": "string"
+          },
+          "includeSummary": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
   }
 }

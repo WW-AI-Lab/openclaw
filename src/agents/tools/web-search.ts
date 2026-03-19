@@ -47,6 +47,16 @@ function resolveSearchProvider(search?: WebSearchConfig): string {
       ? search.provider.trim().toLowerCase()
       : "";
 
+  if (raw === "qwen") {
+    logVerbose(
+      'web_search: provider "qwen" is deprecated; mapped to "openai-search". Use provider: "openai-search" with tools.web.search.openaiSearch config.',
+    );
+    const openAISearch = providers.find((provider) => provider.id === "openai-search");
+    if (openAISearch) {
+      return openAISearch.id;
+    }
+  }
+
   if (raw) {
     const explicit = providers.find((provider) => provider.id === raw);
     if (explicit) {

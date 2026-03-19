@@ -12,7 +12,9 @@ const BUNDLED_WEB_SEARCH_PROVIDERS = [
   { pluginId: "google", id: "gemini", order: 20 },
   { pluginId: "xai", id: "grok", order: 30 },
   { pluginId: "moonshot", id: "kimi", order: 40 },
-  { pluginId: "perplexity", id: "perplexity", order: 50 },
+  { pluginId: "metaso", id: "metaso", order: 50 },
+  { pluginId: "perplexity", id: "perplexity", order: 51 },
+  { pluginId: "openai-search", id: "openai-search", order: 55 },
   { pluginId: "firecrawl", id: "firecrawl", order: 60 },
 ] as const;
 
@@ -93,7 +95,9 @@ describe("resolvePluginWebSearchProviders", () => {
       "google:gemini",
       "xai:grok",
       "moonshot:kimi",
+      "metaso:metaso",
       "perplexity:perplexity",
+      "openai-search:openai-search",
       "firecrawl:firecrawl",
     ]);
     expect(providers.map((provider) => provider.credentialPath)).toEqual([
@@ -101,7 +105,9 @@ describe("resolvePluginWebSearchProviders", () => {
       "plugins.entries.google.config.webSearch.apiKey",
       "plugins.entries.xai.config.webSearch.apiKey",
       "plugins.entries.moonshot.config.webSearch.apiKey",
+      "plugins.entries.metaso.config.webSearch.apiKey",
       "plugins.entries.perplexity.config.webSearch.apiKey",
+      "plugins.entries.openai-search.config.webSearch.apiKey",
       "plugins.entries.firecrawl.config.webSearch.apiKey",
     ]);
     expect(providers.find((provider) => provider.id === "firecrawl")?.applySelectionConfig).toEqual(
@@ -127,7 +133,9 @@ describe("resolvePluginWebSearchProviders", () => {
       "google",
       "xai",
       "moonshot",
+      "metaso",
       "perplexity",
+      "openai-search",
       "firecrawl",
     ]);
   });

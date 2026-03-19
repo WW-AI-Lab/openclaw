@@ -5,7 +5,9 @@ export const BUNDLED_WEB_SEARCH_PLUGIN_IDS = [
   "brave",
   "firecrawl",
   "google",
+  "metaso",
   "moonshot",
+  "openai-search",
   "perplexity",
   "xai",
 ] as const;

@@ -80,8 +80,11 @@ vi.mock("../plugins/web-search-providers.js", () => {
 });
 
 const { __testing } = await import("../agents/tools/web-search.js");
+const { resolveSearchProvider } = __testing;
+
+const { __testing: openaiSearchTesting } =
+  await import("../../extensions/openai-search/src/openai-search-web-search-provider.js");
 const {
-  resolveSearchProvider,
   resolveOpenAISearchConfig,
   resolveOpenAISearchApiKey,
   resolveOpenAISearchBaseUrl,
@@ -90,7 +93,7 @@ const {
   resolveOpenAISearchEnableSearch,
   resolveOpenAISearchEnableThinking,
   resolveOpenAISearchSearchParam,
-} = __testing;
+} = openaiSearchTesting;
 
 describe("web search provider config", () => {
   it("accepts perplexity provider and config", () => {
@@ -176,7 +179,7 @@ describe("web search provider config", () => {
   });
 
   it("accepts metaso provider and config", () => {
-    const res = validateConfigObject(
+    const res = validateConfigObjectWithPlugins(
       buildWebSearchProviderConfig({
         enabled: true,
         provider: "metaso",
@@ -192,7 +195,7 @@ describe("web search provider config", () => {
   });
 
   it("accepts openai-search provider and config", () => {
-    const res = validateConfigObject({
+    const res = validateConfigObjectWithPlugins({
       tools: {
         web: {
           search: {
@@ -215,7 +218,7 @@ describe("web search provider config", () => {
   });
 
   it("accepts qwen provider and config (deprecated alias)", () => {
-    const res = validateConfigObject(
+    const res = validateConfigObjectWithPlugins(
       buildWebSearchProviderConfig({
         enabled: true,
         provider: "qwen",
