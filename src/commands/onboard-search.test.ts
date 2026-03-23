@@ -580,7 +580,9 @@ describe("setupSearch", () => {
     const result = await setupSearch(cfg, runtime, prompter);
     expect(result.tools?.web?.search?.provider).toBe("metaso");
     expect(result.tools?.web?.search?.enabled).toBe(true);
-    expect(result.tools?.web?.search?.metaso?.apiKey).toBe("mk-test-key");
+    expect((result.tools?.web?.search as Record<string, unknown>)?.metaso).toMatchObject({
+      apiKey: "mk-test-key",
+    });
   });
 
   it("sets provider and key for openai-search", async () => {
@@ -592,6 +594,8 @@ describe("setupSearch", () => {
     const result = await setupSearch(cfg, runtime, prompter);
     expect(result.tools?.web?.search?.provider).toBe("openai-search");
     expect(result.tools?.web?.search?.enabled).toBe(true);
-    expect(result.tools?.web?.search?.openaiSearch?.apiKey).toBe("sk-dashscope-test");
+    expect((result.tools?.web?.search as Record<string, unknown>)?.openaiSearch).toMatchObject({
+      apiKey: "sk-dashscope-test",
+    });
   });
 });

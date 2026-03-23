@@ -79,3 +79,16 @@ export { emptyPluginConfigSchema } from "../plugins/config-schema.js";
 export { registerContextEngine } from "../context-engine/registry.js";
 export { delegateCompactionToRuntime } from "../context-engine/delegate.js";
 export { onDiagnosticEvent } from "../infra/diagnostic-events.js";
+
+// Third-party channel plugin helpers (e.g. @tencent-weixin/openclaw-weixin).
+// Bundled extensions should use scoped subpaths instead.
+export { buildChannelConfigSchema } from "../channels/plugins/config-schema.js";
+export { normalizeAccountId } from "../routing/session-key.js";
+export { withFileLock } from "./file-lock.js";
+export { createTypingCallbacks } from "../channels/typing.js";
+export {
+  resolveDirectDmAuthorizationOutcome,
+  resolveSenderCommandAuthorizationWithRuntime,
+} from "./command-auth.js";
+export { resolvePreferredOpenClawTmpDir } from "../infra/tmp-openclaw-dir.js";
+export { stripMarkdown } from "../line/markdown-to-line.js";

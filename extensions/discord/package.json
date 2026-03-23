@@ -11,10 +11,10 @@
     "opusscript": "^0.1.1"
   },
   "devDependencies": {
-    "openclaw": "workspace:*"
+    "@ww-ai-lab/openclaw": "workspace:*"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.3.22"
+    "@ww-ai-lab/openclaw": ">=2026.3.22"
   },
   "peerDependenciesMeta": {
     "openclaw": {

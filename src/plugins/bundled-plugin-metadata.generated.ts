@@ -1589,6 +1589,60 @@ export const GENERATED_BUNDLED_PLUGIN_METADATA = [
     },
   },
   {
+    dirName: "metaso",
+    idHint: "metaso-plugin",
+    source: {
+      source: "./index.ts",
+      built: "index.js",
+    },
+    packageName: "@openclaw/metaso-plugin",
+    packageVersion: "2026.3.14",
+    packageDescription: "OpenClaw Metaso web search plugin",
+    packageManifest: {
+      extensions: ["./index.ts"],
+    },
+    manifest: {
+      id: "metaso",
+      configSchema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          webSearch: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              apiKey: {
+                type: ["string", "object"],
+              },
+              baseUrl: {
+                type: "string",
+              },
+              includeSummary: {
+                type: "boolean",
+              },
+            },
+          },
+        },
+      },
+      uiHints: {
+        "webSearch.apiKey": {
+          label: "Metaso API Key",
+          help: "Metaso API key for Chinese web search.",
+          sensitive: true,
+          placeholder: "sk-...",
+        },
+        "webSearch.baseUrl": {
+          label: "Metaso Base URL",
+          help: "Optional Metaso API endpoint override.",
+        },
+        "webSearch.includeSummary": {
+          label: "Include AI Summary",
+          help: "Include Metaso's AI-generated summary when available.",
+        },
+      },
+    },
+  },
+  {
     dirName: "microsoft",
     idHint: "microsoft",
     source: {
@@ -2140,6 +2194,88 @@ export const GENERATED_BUNDLED_PLUGIN_METADATA = [
           cliDescription: "OpenAI API key",
         },
       ],
+    },
+  },
+  {
+    dirName: "openai-search",
+    idHint: "openai-search-plugin",
+    source: {
+      source: "./index.ts",
+      built: "index.js",
+    },
+    packageName: "@openclaw/openai-search-plugin",
+    packageVersion: "2026.3.14",
+    packageDescription: "OpenClaw OpenAI-compatible search plugin (qwen/DashScope)",
+    packageManifest: {
+      extensions: ["./index.ts"],
+    },
+    manifest: {
+      id: "openai-search",
+      configSchema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          webSearch: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              apiKey: {
+                type: ["string", "object"],
+              },
+              baseUrl: {
+                type: "string",
+              },
+              model: {
+                type: "string",
+              },
+              toolName: {
+                type: "string",
+              },
+              enableSearch: {
+                type: "boolean",
+              },
+              enableThinking: {
+                type: "boolean",
+              },
+              searchParam: {
+                type: "string",
+              },
+            },
+          },
+        },
+      },
+      uiHints: {
+        "webSearch.apiKey": {
+          label: "OpenAI-Compatible Search API Key",
+          help: "DashScope or another OpenAI-compatible web search API key.",
+          sensitive: true,
+          placeholder: "sk-...",
+        },
+        "webSearch.baseUrl": {
+          label: "Base URL",
+          help: "OpenAI-compatible chat completions base URL override.",
+        },
+        "webSearch.model": {
+          label: "Model",
+          help: "Model override for the search-capable chat completions API.",
+        },
+        "webSearch.toolName": {
+          label: "Display Name",
+          help: "Human-friendly name shown in tool descriptions and errors.",
+        },
+        "webSearch.enableSearch": {
+          label: "Enable Search",
+          help: "Send the provider's built-in web-search trigger parameter.",
+        },
+        "webSearch.enableThinking": {
+          label: "Enable Thinking",
+          help: "Enable provider-specific reasoning mode when supported.",
+        },
+        "webSearch.searchParam": {
+          label: "Search Parameter",
+          help: "Request body field used to trigger provider-side web search.",
+        },
+      },
     },
   },
   {

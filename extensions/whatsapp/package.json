@@ -7,10 +7,10 @@
     "@whiskeysockets/baileys": "7.0.0-rc.9"
   },
   "devDependencies": {
-    "openclaw": "workspace:*"
+    "@ww-ai-lab/openclaw": "workspace:*"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.3.22"
+    "@ww-ai-lab/openclaw": ">=2026.3.22"
   },
   "peerDependenciesMeta": {
     "openclaw": {

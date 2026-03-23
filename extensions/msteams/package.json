@@ -9,10 +9,10 @@
     "uuid": "^13.0.0"
   },
   "devDependencies": {
-    "openclaw": "workspace:*"
+    "@ww-ai-lab/openclaw": "workspace:*"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.3.22"
+    "@ww-ai-lab/openclaw": ">=2026.3.22"
   },
   "peerDependenciesMeta": {
     "openclaw": {

@@ -44,37 +44,40 @@ function sanitizeBundledManifestForRuntimeInstall(pluginDir) {
   const packageJson = readJson(manifestPath);
   let changed = false;
 
-  if (packageJson.peerDependencies?.openclaw) {
-    const nextPeerDependencies = { ...packageJson.peerDependencies };
-    delete nextPeerDependencies.openclaw;
-    if (Object.keys(nextPeerDependencies).length === 0) {
-      delete packageJson.peerDependencies;
-    } else {
-      packageJson.peerDependencies = nextPeerDependencies;
+  const hostPackageNames = ["openclaw", "@ww-ai-lab/openclaw"];
+  for (const hostPkg of hostPackageNames) {
+    if (packageJson.peerDependencies?.[hostPkg]) {
+      const nextPeerDependencies = { ...packageJson.peerDependencies };
+      delete nextPeerDependencies[hostPkg];
+      if (Object.keys(nextPeerDependencies).length === 0) {
+        delete packageJson.peerDependencies;
+      } else {
+        packageJson.peerDependencies = nextPeerDependencies;
+      }
+      changed = true;
     }
-    changed = true;
-  }
 
-  if (packageJson.peerDependenciesMeta?.openclaw) {
-    const nextPeerDependenciesMeta = { ...packageJson.peerDependenciesMeta };
-    delete nextPeerDependenciesMeta.openclaw;
-    if (Object.keys(nextPeerDependenciesMeta).length === 0) {
-      delete packageJson.peerDependenciesMeta;
-    } else {
-      packageJson.peerDependenciesMeta = nextPeerDependenciesMeta;
+    if (packageJson.peerDependenciesMeta?.[hostPkg]) {
+      const nextPeerDependenciesMeta = { ...packageJson.peerDependenciesMeta };
+      delete nextPeerDependenciesMeta[hostPkg];
+      if (Object.keys(nextPeerDependenciesMeta).length === 0) {
+        delete packageJson.peerDependenciesMeta;
+      } else {
+        packageJson.peerDependenciesMeta = nextPeerDependenciesMeta;
+      }
+      changed = true;
     }
-    changed = true;
-  }
 
-  if (packageJson.devDependencies?.openclaw) {
-    const nextDevDependencies = { ...packageJson.devDependencies };
-    delete nextDevDependencies.openclaw;
-    if (Object.keys(nextDevDependencies).length === 0) {
-      delete packageJson.devDependencies;
-    } else {
-      packageJson.devDependencies = nextDevDependencies;
+    if (packageJson.devDependencies?.[hostPkg]) {
+      const nextDevDependencies = { ...packageJson.devDependencies };
+      delete nextDevDependencies[hostPkg];
+      if (Object.keys(nextDevDependencies).length === 0) {
+        delete packageJson.devDependencies;
+      } else {
+        packageJson.devDependencies = nextDevDependencies;
+      }
+      changed = true;
     }
-    changed = true;
   }
 
   if (changed) {
