@@ -5,10 +5,9 @@ import type {
   PluginWebSearchProviderEntry,
   WebSearchProviderToolDefinition,
 } from "../plugins/types.js";
-import {
-  resolvePluginWebSearchProviders,
-  resolveRuntimeWebSearchProviders,
-} from "../plugins/web-search-providers.js";
+import { resolveBundledPluginWebSearchProviders } from "../plugins/web-search-providers.js";
+import { resolvePluginWebSearchProviders } from "../plugins/web-search-providers.runtime.js";
+import { resolveRuntimeWebSearchProviders } from "../plugins/web-search-providers.runtime.js";
 import type { RuntimeWebSearchMetadata } from "../secrets/runtime-web-tools.types.js";
 import { normalizeSecretInput } from "../utils/normalize-secret-input.js";
 
@@ -90,6 +89,15 @@ export function listWebSearchProviders(params?: {
   });
 }
 
+export function listConfiguredWebSearchProviders(params?: {
+  config?: OpenClawConfig;
+}): PluginWebSearchProviderEntry[] {
+  return resolvePluginWebSearchProviders({
+    config: params?.config,
+    bundledAllowlistCompat: true,
+  });
+}
+
 export function resolveWebSearchProviderId(params: {
   search?: WebSearchConfig;
   config?: OpenClawConfig;
@@ -97,7 +105,7 @@ export function resolveWebSearchProviderId(params: {
 }): string {
   const providers =
     params.providers ??
-    resolvePluginWebSearchProviders({
+    resolveBundledPluginWebSearchProviders({
       config: params.config,
       bundledAllowlistCompat: true,
     });
@@ -105,6 +113,16 @@ export function resolveWebSearchProviderId(params: {
     params.search && "provider" in params.search && typeof params.search.provider === "string"
       ? params.search.provider.trim().toLowerCase()
       : "";
+
+  if (raw === "qwen") {
+    logVerbose(
+      'web_search: provider "qwen" is deprecated; mapped to "openai-search". Use provider: "openai-search" with tools.web.search.openaiSearch config.',
+    );
+    const openAISearch = providers.find((provider) => provider.id === "openai-search");
+    if (openAISearch) {
+      return openAISearch.id;
+    }
+  }
 
   if (raw) {
     const explicit = providers.find((provider) => provider.id === raw);
@@ -142,7 +160,7 @@ export function resolveWebSearchDefinition(
           config: options?.config,
           bundledAllowlistCompat: true,
         })
-      : resolvePluginWebSearchProviders({
+      : resolveBundledPluginWebSearchProviders({
           config: options?.config,
           bundledAllowlistCompat: true,
         })

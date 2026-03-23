@@ -1,5 +1,5 @@
 import { completeSimple, type AssistantMessage } from "@mariozechner/pi-ai";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ensureCustomApiRegistered } from "../agents/custom-api-registry.js";
 import { getApiKeyForModel } from "../agents/model-auth.js";
 import { resolveModelAsync } from "../agents/pi-embedded-runner/model.js";
@@ -15,10 +15,16 @@ vi.mock("@mariozechner/pi-ai", async (importOriginal) => {
   };
 });
 
-vi.mock("@mariozechner/pi-ai/oauth", () => ({
-  getOAuthProviders: () => [],
-  getOAuthApiKey: vi.fn(async () => null),
-}));
+vi.mock("@mariozechner/pi-ai/oauth", async () => {
+  const actual = await vi.importActual<typeof import("@mariozechner/pi-ai/oauth")>(
+    "@mariozechner/pi-ai/oauth",
+  );
+  return {
+    ...actual,
+    getOAuthProviders: () => [],
+    getOAuthApiKey: vi.fn(async () => null),
+  };
+});
 
 function createResolvedModel(provider: string, modelId: string, api = "openai-completions") {
   return {
@@ -213,7 +219,7 @@ describe("tts", () => {
   });
 
   describe("resolveOutputFormat", () => {
-    it("selects opus for voice-bubble channels (telegram/feishu/whatsapp) and mp3 for others", () => {
+    it("selects opus for voice-bubble channels (telegram/feishu/whatsapp/matrix) and mp3 for others", () => {
       const cases = [
         {
           channel: "telegram",
@@ -235,6 +241,15 @@ describe("tts", () => {
         },
         {
           channel: "whatsapp",
+          expected: {
+            openai: "opus",
+            elevenlabs: "opus_48000_64",
+            extension: ".opus",
+            voiceCompatible: true,
+          },
+        },
+        {
+          channel: "matrix",
           expected: {
             openai: "opus",
             elevenlabs: "opus_48000_64",
@@ -374,8 +389,7 @@ describe("tts", () => {
       messages: { tts: {} },
     };
 
-    beforeEach(async () => {
-      vi.resetModules();
+    beforeAll(async () => {
       ({ completeSimple: completeSimpleForTest } = await import("@mariozechner/pi-ai"));
       ({ getApiKeyForModel: getApiKeyForModelForTest } = await import("../agents/model-auth.js"));
       ({ resolveModelAsync: resolveModelAsyncForTest } =
@@ -385,6 +399,9 @@ describe("tts", () => {
       const ttsModule = await import("./tts.js");
       summarizeTextForTest = ttsModule._test.summarizeText;
       resolveTtsConfigForTest = ttsModule.resolveTtsConfig;
+    });
+
+    beforeEach(() => {
       vi.mocked(completeSimpleForTest).mockResolvedValue(
         mockAssistantMessage([{ type: "text", text: "Summary" }]),
       );

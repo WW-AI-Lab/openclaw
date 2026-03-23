@@ -34,13 +34,20 @@ const mockExit = vi.fn((code: number) => {
   throw new Error(`__exit__:${code} - ${errorMessages}`);
 });
 
-vi.mock("../runtime.js", () => ({
-  defaultRuntime: {
-    log: (...args: unknown[]) => mockLog(...args),
-    error: (...args: unknown[]) => mockError(...args),
-    exit: (code: number) => mockExit(code),
-  },
-}));
+vi.mock("../runtime.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../runtime.js")>();
+  return {
+    ...actual,
+    defaultRuntime: {
+      log: (...args: unknown[]) => mockLog(...args),
+      error: (...args: unknown[]) => mockError(...args),
+      writeStdout: (value: string) => mockLog(value.endsWith("\n") ? value.slice(0, -1) : value),
+      writeJson: (value: unknown, space = 2) =>
+        mockLog(JSON.stringify(value, null, space > 0 ? space : undefined)),
+      exit: (code: number) => mockExit(code),
+    },
+  };
+});
 
 function buildSnapshot(params: {
   resolved: OpenClawConfig;
@@ -209,6 +216,94 @@ describe("config cli", () => {
         apiKey: "ollama-local", // pragma: allowlist secret
       });
     });
+
+    it("drops gateway.auth.password when switching mode to token", async () => {
+      const resolved: OpenClawConfig = {
+        gateway: {
+          auth: {
+            mode: "password",
+            token: "token-keep",
+            password: "password-drop", // pragma: allowlist secret
+            allowTailscale: true,
+          },
+        },
+      };
+      setSnapshot(resolved, resolved);
+
+      await runConfigCommand(["config", "set", "gateway.auth.mode", "token"]);
+
+      expect(mockWriteConfigFile).toHaveBeenCalledTimes(1);
+      const written = mockWriteConfigFile.mock.calls[0]?.[0];
+      expect(written.gateway?.auth).toEqual({
+        mode: "token",
+        token: "token-keep",
+        allowTailscale: true,
+      });
+      expect(mockLog).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "Removed inactive gateway.auth.password for gateway.auth.mode=token",
+        ),
+      );
+    });
+
+    it("drops gateway.auth.token when switching mode to password", async () => {
+      const resolved: OpenClawConfig = {
+        gateway: {
+          auth: {
+            mode: "token",
+            token: "token-drop",
+            password: "password-keep", // pragma: allowlist secret
+          },
+        },
+      };
+      setSnapshot(resolved, resolved);
+
+      await runConfigCommand(["config", "set", "gateway.auth.mode", "password"]);
+
+      expect(mockWriteConfigFile).toHaveBeenCalledTimes(1);
+      const written = mockWriteConfigFile.mock.calls[0]?.[0];
+      expect(written.gateway?.auth).toEqual({
+        mode: "password",
+        password: "password-keep", // pragma: allowlist secret
+      });
+      expect(mockLog).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "Removed inactive gateway.auth.token for gateway.auth.mode=password",
+        ),
+      );
+    });
+
+    it("applies mode-based credential cleanup using the final batch result", async () => {
+      const resolved: OpenClawConfig = {
+        gateway: {
+          auth: {
+            mode: "password",
+            token: "token-keep",
+            password: "password-drop", // pragma: allowlist secret
+          },
+        },
+      };
+      setSnapshot(resolved, resolved);
+
+      await runConfigCommand([
+        "config",
+        "set",
+        "--batch-json",
+        '[{"path":"gateway.auth.password","value":"password-updated"},{"path":"gateway.auth.mode","value":"token"}]',
+      ]);
+
+      expect(mockWriteConfigFile).toHaveBeenCalledTimes(1);
+      const written = mockWriteConfigFile.mock.calls[0]?.[0];
+      expect(written.gateway?.auth).toEqual({
+        mode: "token",
+        token: "token-keep",
+      });
+      expect(mockLog).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "Removed inactive gateway.auth.password for gateway.auth.mode=token",
+        ),
+      );
+    });
   });
 
   describe("config get", () => {
@@ -354,6 +449,15 @@ describe("config cli", () => {
       expect(mockReadConfigFileSnapshot).not.toHaveBeenCalled();
     });
 
+    it("rejects JSON5-only object syntax when strict parsing is enabled", async () => {
+      await expect(
+        runConfigCommand(["config", "set", "gateway.auth", "{mode:'token'}", "--strict-json"]),
+      ).rejects.toThrow("__exit__:1");
+
+      expect(mockWriteConfigFile).not.toHaveBeenCalled();
+      expect(mockReadConfigFileSnapshot).not.toHaveBeenCalled();
+    });
+
     it("accepts --strict-json with batch mode and applies batch payload", async () => {
       const resolved: OpenClawConfig = { gateway: { port: 18789 } };
       setSnapshot(resolved, resolved);
@@ -382,6 +486,8 @@ describe("config cli", () => {
       expect(helpText).toContain("--strict-json");
       expect(helpText).toContain("--json");
       expect(helpText).toContain("Legacy alias for --strict-json");
+      expect(helpText).toContain("Value (JSON/JSON5 or raw string)");
+      expect(helpText).toContain("Strict JSON parsing (error instead of");
       expect(helpText).toContain("--ref-provider");
       expect(helpText).toContain("--provider-source");
       expect(helpText).toContain("--batch-json");
