@@ -723,9 +723,10 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
 
   // Lazy: avoid creating the Jiti loader when all plugins are disabled (common in unit tests).
   const jitiLoaders = new Map<string, ReturnType<typeof createJiti>>();
+  const loaderModuleUrl = import.meta.url;
   const getJiti = (modulePath: string) => {
     const tryNative = shouldPreferNativeJiti(modulePath);
-    const aliasMap = buildPluginLoaderAliasMap(modulePath);
+    const aliasMap = buildPluginLoaderAliasMap(modulePath, loaderModuleUrl);
     const cacheKey = JSON.stringify({
       tryNative,
       aliasMap: Object.entries(aliasMap).toSorted(([left], [right]) => left.localeCompare(right)),
